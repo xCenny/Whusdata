@@ -1,0 +1,13 @@
+openai
+langgraph
+langchain_core
+pydantic
+tenacity
+psutil
+httpx
+beautifulsoup4
+wikipedia
+chromadb
+sentence-transformers
+streamlit
+pandas

@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  uhsbot-pipeline:
+    build: .
+    container_name: uhsbot-pipeline
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./:/app

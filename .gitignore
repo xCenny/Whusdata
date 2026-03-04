@@ -1,0 +1,21 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables
+.env
+
+# Database and Vector Store
+pipeline.db
+pipeline.db-*
+chroma_db/
+
+# Logs
+*.log
+pipeline.log
+
+# Virtual Environment
+venv/
+env/
+ENV/
