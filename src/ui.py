@@ -346,7 +346,7 @@ elif page == "🔑 API Keys":
             col1, col2, col3 = st.columns([3, 1, 1])
             
             # Multiple Keys text area
-            input_keys = col1.text_area(f"{ui_name} Keys (One per line)", value=keys_str, height=100, type="password" if not keys_str else "default", key=f"key_{base_name}")
+            input_keys = col1.text_area(f"{ui_name} Keys (One per line)", value=keys_str, height=100, key=f"key_{base_name}")
             
             # Status Toggle (default to true if missing)
             curr_active = db.get_setting(f"provider_{base_name}") != "false"
