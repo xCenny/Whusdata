@@ -168,11 +168,12 @@ elif page == "💬 Conversations":
         mode_label = "🧪 CAL" if mode == "calibration" else "🚀 PROD"
         
         with st.expander(f"{tier_emoji} #{convo['id']} {mode_label} — {convo.get('topic', 'N/A')[:55]}... | Conf: {conf:.2f}"):
-            tc1, tc2, tc3, tc4 = st.columns(4)
+            tc1, tc2, tc3, tc4, tc5 = st.columns(5)
             tc1.markdown(f"**Persona:** `{convo.get('persona_type', '-')}`")
             tc2.markdown(f"**Conflict:** `{convo.get('conflict_type', '-')}`")
             tc3.markdown(f"**Domain:** `{convo.get('domain', '-')}`")
-            tc4.markdown(f"**Tier:** `{tier}` | **Failure:** `{convo.get('failure_type', 'NONE')}`")
+            tc4.markdown(f"**Tier:** `{tier}`")
+            tc5.markdown(f"**🤖 Model:** `{convo.get('model_used', 'unknown')}`")
             st.markdown("---")
             try:
                 history = json.loads(convo.get("conversation_history", "[]"))
@@ -241,6 +242,23 @@ elif page == "⚙️ Pipeline Control":
             st.rerun()
     
     st.markdown("---")
+    st.subheader("🏎️ Pipeline Speed Settings")
+    
+    # Load current settings, fallback to defaults
+    current_speed = int(db.get_setting("pipeline_speed") or 15)
+    current_idle = int(db.get_setting("pipeline_idle") or 60)
+    
+    with st.form("speed_control"):
+        s1, s2 = st.columns(2)
+        new_speed = s1.slider("Cycle Delay (Seconds between generations)", min_value=1, max_value=60, value=current_speed)
+        new_idle = s2.slider("Idle Wait (Seconds if no topics found)", min_value=10, max_value=300, value=current_idle, step=10)
+        
+        if st.form_submit_button("💾 Save Speed Settings", use_container_width=True):
+            db.set_setting("pipeline_speed", str(new_speed))
+            db.set_setting("pipeline_idle", str(new_idle))
+            st.success("Speed settings saved!")
+
+    st.markdown("---")
     st.subheader("📜 Pipeline Log (Last 50 Lines)")
     try:
         with open("pipeline.log", "r", encoding="utf-8", errors="ignore") as f:
@@ -253,10 +271,9 @@ elif page == "⚙️ Pipeline Control":
 # 🔑 API KEYS
 # ═══════════════════════════════════════════════
 elif page == "🔑 API Keys":
-    st.title("🔑 API Key Management")
-    st.caption("Update provider API keys. The pipeline will automatically reload them on its next cycle.")
+    st.title("🔑 API Provider Dashboard")
+    st.caption("Manage providers, rotate multiple keys, and set daily token limits.")
     
-    # Simple helper to read and write .env
     def load_env_vars():
         env_dict = {}
         try:
@@ -271,7 +288,6 @@ elif page == "🔑 API Keys":
         return env_dict
 
     def save_env_vars(env_dict):
-        # Read existing to keep comments/structure if possible, or just overwrite
         lines = []
         try:
             with open(".env", "r") as f:
@@ -281,49 +297,89 @@ elif page == "🔑 API Keys":
             
         new_lines = []
         handled_keys = set()
+        
+        # Keep old stuff if it's not being overwritten AND not a targeted prefix we are clearing
+        prefixes = ["GEMINI_API_KEY", "GROQ_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY"]
         for line in lines:
             stripped = line.strip()
             if stripped and not stripped.startswith("#") and "=" in stripped:
                 k = stripped.split("=", 1)[0]
-                if k in env_dict:
-                    new_lines.append(f"{k}={env_dict[k]}\n")
-                    handled_keys.add(k)
+                
+                # If it's one of our prefixes, drop it because we rebuild it from scratch below
+                if any(k.startswith(p) for p in prefixes):
+                    continue
                 else:
                     new_lines.append(line)
             else:
                 new_lines.append(line)
                 
-        # Add any new keys that weren't inherently present
+        # Inject new rotated keys
         for k, v in env_dict.items():
-            if k not in handled_keys and v:
+            if v:
                 new_lines.append(f"{k}={v}\n")
                 
         with open(".env", "w") as f:
             f.writelines(new_lines)
-
+            
+    # Load current env vars and group by prefix
     current_env = load_env_vars()
+    gemini_keys = "\n".join([v for k, v in current_env.items() if k.startswith("GEMINI_API_KEY")])
+    groq_keys = "\n".join([v for k, v in current_env.items() if k.startswith("GROQ_API_KEY")])
+    openai_keys = "\n".join([v for k, v in current_env.items() if k.startswith("OPENAI_API_KEY")])
+    deepseek_keys = "\n".join([v for k, v in current_env.items() if k.startswith("DEEPSEEK_API_KEY")])
+    
+    providers = [
+        ("Gemini", "gemini", gemini_keys),
+        ("Groq", "groq", groq_keys),
+        ("OpenAI", "openai", openai_keys),
+        ("DeepSeek", "deepseek", deepseek_keys)
+    ]
     
     with st.form("api_keys_form"):
-        st.subheader("Provider Keys")
+        st.info("💡 You can enter multiple API keys for a provider by placing each key on a new line.")
         
-        gemini = st.text_input("GEMINI_API_KEY", value=current_env.get("GEMINI_API_KEY", ""), type="password")
-        groq = st.text_input("GROQ_API_KEY", value=current_env.get("GROQ_API_KEY", ""), type="password")
-        openai = st.text_input("OPENAI_API_KEY", value=current_env.get("OPENAI_API_KEY", ""), type="password")
-        deepseek = st.text_input("DEEPSEEK_API_KEY", value=current_env.get("DEEPSEEK_API_KEY", ""), type="password")
+        updates = {}
+        db_updates = {}
         
-        st.markdown("---")
-        submit = st.form_submit_button("💾 Save Keys", use_container_width=True)
+        for ui_name, base_name, keys_str in providers:
+            st.markdown(f"### {ui_name}")
+            col1, col2, col3 = st.columns([3, 1, 1])
+            
+            # Multiple Keys text area
+            input_keys = col1.text_area(f"{ui_name} Keys (One per line)", value=keys_str, height=100, type="password" if not keys_str else "default", key=f"key_{base_name}")
+            
+            # Status Toggle (default to true if missing)
+            curr_active = db.get_setting(f"provider_{base_name}") != "false"
+            is_active = col2.checkbox(f"Enable {ui_name}", value=curr_active, key=f"tgl_{base_name}")
+            
+            # Daily Limit
+            curr_limit = db.get_setting(f"limit_{base_name}") or "2000000"
+            limit = col3.number_input(f"Daily Token Limit", min_value=1000, max_value=100000000, value=int(curr_limit), step=10000, key=f"lim_{base_name}")
+            
+            st.markdown("---")
+            
+            # Process multi-line keys before submit to bind them in case submit is clicked
+            keys_list = [k.strip() for k in input_keys.split("\n") if k.strip()]
+            for idx, key_val in enumerate(keys_list):
+                if idx == 0:
+                    updates[f"{base_name.upper()}_API_KEY"] = key_val
+                else:
+                    updates[f"{base_name.upper()}_API_KEY_{idx}"] = key_val
+                    
+            db_updates[f"provider_{base_name}"] = "true" if is_active else "false"
+            db_updates[f"limit_{base_name}"] = str(limit)
+
+        submit = st.form_submit_button("💾 Save All Providers", use_container_width=True)
         
         if submit:
-            updates = {
-                "GEMINI_API_KEY": gemini,
-                "GROQ_API_KEY": groq,
-                "OPENAI_API_KEY": openai,
-                "DEEPSEEK_API_KEY": deepseek
-            }
-            # Only save non-empty values or overwrite? Let's overwrite so they can delete a key
+            # Save strictly LLM API keys via .env
             save_env_vars(updates)
-            st.success("✅ Keys saved successfully to `.env` file! Pipeline will hot-reload them.")
+            
+            # Save toggles and bounds in SQLite
+            for k, v in db_updates.items():
+                db.set_setting(k, v)
+                
+            st.success("✅ Providers saved! Pipeline will hot-reload them automatically.")
             st.rerun()
 
 # ═══════════════════════════════════════════════

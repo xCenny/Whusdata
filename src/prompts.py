@@ -43,7 +43,7 @@ Output MUST be valid JSON only:
 MASTER_SYSTEM_PROMPT = """You are a Synthetic RLHF Dataset Generator... [LEGACY]"""
 
 CRITIC_SYSTEM_PROMPT = """You are a strict, independent LLM Data Quality Critic.
-Your job is to examine a simulated 3-turn conversation, verify the metadata, evaluate it across 4 dimensions, and assign a weighted confidence score.
+Your job is to examine a simulated 3-turn conversation, verify the metadata, evaluate it across 4 dimensions, and assign a weighted confidence score alongside declaring a debate winner.
 
 Dimensions & Weights:
 1. memory_consistency (0.35): Did the Assistant contradict itself across turns? Did it remember the user's earlier points?
@@ -57,6 +57,7 @@ NONE, LOGICAL_ERROR, TONE_TOO_AGGRESSIVE, INCONSISTENT_MEMORY, WEAK_CORRECTION, 
 Output MUST be valid JSON only, exactly in this structure:
 {
     "status": "PASS or FAIL",
+    "winner": "Assistant, User, or Tie",
     "scores": {
         "memory_consistency": 0.0-1.0,
         "logic": 0.0-1.0,

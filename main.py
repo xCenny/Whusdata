@@ -99,11 +99,14 @@ def orchestrator_loop():
                 db.set_setting("calibration_mode", "false")
                 logger.info("📊 Calibration mode COMPLETE. 500 generations reached. Switching to production mode.")
 
+            # dynamic idle read
+            idle_speed = int(db.get_setting("pipeline_idle") or 60)
+
             # ── Resource Check ──
             status = check_system_resources()
             if status == "CRITICAL":
-                logger.warning("CRITICAL resource load detected! Suspending all operations for 5 minutes.")
-                time.sleep(300)
+                logger.warning(f"CRITICAL resource load detected! Suspending all operations for {idle_speed} seconds.")
+                time.sleep(idle_speed)
                 continue
                 
             # ── 1. Research Agent Phase ──
@@ -129,8 +132,8 @@ def orchestrator_loop():
             topic_record = db.get_pending_topic()
             
             if not topic_record:
-                logger.info("No PENDING topics found in database. Sleeping for 60 seconds...")
-                time.sleep(60)
+                logger.info(f"No PENDING topics found in database. Sleeping for {idle_speed} seconds...")
+                time.sleep(idle_speed)
                 continue
                 
             topic_id = topic_record["id"]
@@ -155,13 +158,20 @@ def orchestrator_loop():
             
             final_state = teacher_graph.graph.invoke(initial_state)
             
-            # ── Log usage/costs from the Graph ──
+            # ── Extract primary model used for observability ──
+            primary_model = "unknown"
             for usage in final_state.get("usage_log", []):
                 db.log_cost(
                     model=usage.get("model", "unknown"),
                     prompt_tokens=usage.get("prompt_tokens", 0),
                     completion_tokens=usage.get("completion_tokens", 0)
                 )
+                if usage.get("model") != "unknown":
+                    primary_model = usage.get("model")
+                    
+            if "critic_data" not in final_state:
+                final_state["critic_data"] = {}
+            final_state["critic_data"]["model_used"] = primary_model
 
             # ═══════════════════════════════════════════
             # 3. GUARD LAYER — Production Validation
@@ -225,8 +235,10 @@ def orchestrator_loop():
             else:
                 db.mark_topic_status(topic_id, "FAILED (DUPLICATE)")
             
-            logger.info("Orchestrator sleeping for 15 seconds before next cycle...")
-            time.sleep(15)
+            # Dynamic speed control from UI
+            pipeline_speed = int(db.get_setting("pipeline_speed") or 15)
+            logger.info(f"Orchestrator sleeping for {pipeline_speed} seconds before next cycle (configurable via UI)...")
+            time.sleep(pipeline_speed)
             
         except Exception as e:
             logger.error(f"Critical Orchestrator Error: {e}")

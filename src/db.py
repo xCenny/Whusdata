@@ -50,12 +50,30 @@ class DatabaseManager:
                         critic_status TEXT,
                         critic_confidence REAL,
                         memory_consistency_score REAL,
+                        logic_score REAL,
+                        winner TEXT DEFAULT 'Unknown',
                         failure_type TEXT DEFAULT 'NONE',
                         generation_mode TEXT DEFAULT 'production',
+                        model_used TEXT DEFAULT 'unknown',
                         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                         sha256_hash TEXT UNIQUE
                     );
                 """)
+                
+                # Graceful migration for existing DBs
+                try:
+                    cursor.execute("ALTER TABLE generations ADD COLUMN model_used TEXT DEFAULT 'unknown';")
+                except sqlite3.OperationalError:
+                    pass
+                try:
+                    cursor.execute("ALTER TABLE generations ADD COLUMN logic_score REAL;")
+                except sqlite3.OperationalError:
+                    pass
+                try:
+                    cursor.execute("ALTER TABLE generations ADD COLUMN winner TEXT DEFAULT 'Unknown';")
+                except sqlite3.OperationalError:
+                    pass
+                    
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS cost_log (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -199,9 +217,9 @@ class DatabaseManager:
             return [dict(r) for r in rows]
 
     def export_jsonl(self, tier_filter: int = None, domain_filter: str = None, difficulty_filter: str = None) -> List[Dict[str, Any]]:
-        """Exports PASSED generations in SFT-ready JSONL format with optional filters."""
+        """Exports PASSED generations in rich SFT-ready JSONL format including metadata."""
         with self.get_connection() as conn:
-            query = "SELECT conversation_history FROM generations WHERE critic_status = 'PASS'"
+            query = "SELECT * FROM generations WHERE critic_status = 'PASS'"
             params = []
             if tier_filter is not None:
                 query += " AND tier = ?"
@@ -224,7 +242,22 @@ class DatabaseManager:
                             clean.append({"role": "assistant", "content": msg.get("content", "")})
                         else:
                             clean.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
-                    results.append({"messages": clean})
+                            
+                    # Construct rich dataset point
+                    data_point = {
+                        "topic": r["topic"],
+                        "domain": r["domain"],
+                        "difficulty": r["difficulty_level"],
+                        "persona": r["persona_type"],
+                        "scenario_conflict": r["conflict_type"],
+                        "winner": r.get("winner", "Unknown"),
+                        "logic_score": r.get("logic_score", 0.0),
+                        "critic_confidence": r["critic_confidence"],
+                        "memory_score": r["memory_consistency_score"],
+                        "model_used": r.get("model_used", "unknown"),
+                        "messages": clean
+                    }
+                    results.append(data_point)
                 except json.JSONDecodeError:
                     continue
             return results
@@ -254,10 +287,11 @@ class DatabaseManager:
                     INSERT INTO generations (
                         topic, conversation_history, 
                         persona_type, conflict_type, resolution_style, difficulty_level, domain,
-                        tier, critic_status, critic_confidence, memory_consistency_score, failure_type,
-                        generation_mode, sha256_hash
+                        tier, critic_status, critic_confidence, memory_consistency_score,
+                        logic_score, winner, failure_type,
+                        generation_mode, model_used, sha256_hash
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     topic,
                     convo_json,
@@ -270,8 +304,11 @@ class DatabaseManager:
                     critic_data.get("status", "FAIL"),
                     critic_data.get("confidence", 0.0),
                     critic_data.get("memory_consistency", 0.0),
+                    critic_data.get("logic_score", 0.0),
+                    critic_data.get("winner", "Unknown"),
                     critic_data.get("failure_type", "NONE"),
                     mode,
+                    critic_data.get("model_used", "unknown"),
                     sha256_hash
                 ))
                 row_id = cursor.lastrowid

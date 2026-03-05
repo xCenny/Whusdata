@@ -205,6 +205,8 @@ class PipelineGraph:
                 "status": critic_status,
                 "confidence": computed_confidence,
                 "memory_consistency": mem,
+                "logic_score": logic,
+                "winner": result.get("winner", "Unknown"),
                 "failure_type": failure_type,
                 "feedback": result.get("feedback", ""),
                 "scores": scores

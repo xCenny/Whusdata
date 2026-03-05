@@ -31,12 +31,14 @@ Açık kaynaklı dil modellerini eğitmek (SFT / RLHF fine-tuning) amacıyla **7
 └──────────────────────────────────────────────────────────┘
 ```
 
-### 🧠 Gelişmiş Özellikler (Phase 4)
+### 🧠 Gelişmiş Özellikler (Phase 4 & 5)
 
+- **Gelişmiş SFT Veriseti Disiplini**: Açık kaynak (Llama 3, vs) fine-tuning için üretilen JSONL verisi artık sadece sohbet mesajlarını değil; `topic`, `difficulty`, `domain`, `persona`, `winner`, ve `logic_score` gibi zengin meta etiketlerini de içerir (OpenAI Debate Dataset stili).
+- **Çoklu-Anahtar ve Otomatik Rotasyon**: `🔑 API Keys` arayüzü üzerinden her bir sağlayıcı (Gemini, Groq, DeepSeek) için birden fazla API anahtarı eklenebilir. Sistem Rate Limit hatası alırsa otomatik anahtar değiştirir veya sağlayıcıyı `2 Saatlik Cooldown` (bekleme) moduna alır.
 - **Sıralı Ajan Diyaloğu (Granular Loop)**: Teacher artık tek seferde değil, her turda (User -> Asistan) ayrı model çağrıları yaparak gerçek bir çatışma dinamiği oluşturur.
-- **Maliyet ve Bütçe Koruması**: Her model çağrısının token kullanımı SQLite'a (`cost_log`) kaydedilir. Günlük limit ($10.00 varsayılan) aşılırsa sistem otomatik olarak duraklatılır.
+- **Dinamik Hız ve Başarım Kontrolü**: Üretim hızı (pipeline speed) ve günlük token limitleri (örn: Gemini için 2M limit) UI üzerinden anlık olarak ayarlanabilir. Limit aşılırsa o sağlayıcı için üretim günlüğüne kadar durdurulur.
 - **Kalibrasyon vs Üretim Modu**: İlk 500 üretim "Calibration" olarak işaretlenerek kalite kontrolü için optimize edilir.
-- **Drift Monitoring**: Son 7 günlük PASS oranı ve güven skoru trendleri üzerinden kalite bozulması anlık takip edilir.
+- **Model Gözlemlenebilirliği (Observability)**: Her üretimin `model_used` (örn: `llama-3.3-70b-versatile`) etiketi doğrudan UI'dan takip edilebilir.
 
 ### 4 Ajan — 4 Görev
 
