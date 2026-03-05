@@ -134,15 +134,18 @@ class PipelineGraph:
             
             return {
                 "conversation_history": history,
-                "usage_log": state.get("usage_log", []) + [usage]
+                "usage_log": state.get("usage_log", []) + [usage],
+                "current_turn": turn + 1
             }
         except Exception as e:
             logger.error(f"Assistant turn generation failed: {e}")
-            return {"rejected": True, "status": "failed"}
+            return {"rejected": True}
 
     def edge_after_assistant(self, state: GraphState) -> str:
+        if state.get("rejected"):
+            return "finalize"
         turn = state.get("current_turn", 1)
-        if turn >= 3:
+        if turn > 3:
             return "finalize"
         return "next_turn"
 
@@ -158,8 +161,7 @@ class PipelineGraph:
             
             return {
                 "metadata": data,
-                "usage_log": state.get("usage_log", []) + [usage],
-                "current_turn": state.get("current_turn", 1) + 1 # Increment only here to trigger next loop or end
+                "usage_log": state.get("usage_log", []) + [usage]
             }
         except Exception as e:
             logger.error(f"Metadata generation failed: {e}")
