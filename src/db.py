@@ -141,6 +141,11 @@ class DatabaseManager:
             conn.execute("UPDATE target_keywords SET status = 'DONE' WHERE id = ?", (keyword_id,))
             conn.commit()
 
+    # ── Generation Count Helper ──
+    def get_generation_count(self) -> int:
+        with self.get_connection() as conn:
+            return conn.execute("SELECT COUNT(*) FROM generations").fetchone()[0]
+
     # ── Dashboard Stats Helpers ──
     def get_dashboard_stats(self) -> Dict[str, Any]:
         with self.get_connection() as conn:
