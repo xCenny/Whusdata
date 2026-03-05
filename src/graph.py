@@ -180,7 +180,7 @@ class PipelineGraph:
                 prompt=prompt, 
                 system_message=CRITIC_SYSTEM_PROMPT, 
                 temperature=0.1, 
-                provider_override="groq"
+                role="reasoning"
             )
             result = result_wrapper.get("data", {})
             usage = result_wrapper.get("usage", {})
@@ -233,7 +233,7 @@ class PipelineGraph:
         prompt = f"Correct the assistant responses in this history based on feedback: {critic.get('feedback')}\n\nHistory: {history}"
         
         try:
-            result_wrapper = self.llm.generate(prompt=prompt, system_message=REFLECTION_SYSTEM_PROMPT, temperature=0.3)
+            result_wrapper = self.llm.generate(prompt=prompt, system_message=REFLECTION_SYSTEM_PROMPT, temperature=0.3, role="reasoning")
             data = result_wrapper.get("data", {})
             usage = result_wrapper.get("usage", {})
             
