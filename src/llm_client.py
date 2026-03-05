@@ -2,7 +2,7 @@ import os
 import json
 import logging
 import re
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, List
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 from openai import OpenAI, RateLimitError, APIConnectionError, InternalServerError
 
