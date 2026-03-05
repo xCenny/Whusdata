@@ -37,6 +37,14 @@ MODEL_CONFIGS = {
     }
 }
 
+class BudgetGuardian:
+    def __init__(self):
+        self.tokens_used = 0
+
+    def add_usage(self, provider: str, tokens: int):
+        self.tokens_used += tokens
+        logger.info(f"BudgetGuardian: +{tokens} tokens via {provider}. Total: {self.tokens_used}")
+
 class LLMClient:
     def __init__(self):
         self.guardian = BudgetGuardian()
