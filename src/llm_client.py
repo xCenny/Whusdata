@@ -1,8 +1,20 @@
+import os
+import json
+import logging
+import re
+import time
 from typing import Dict, Any, List, Set
 
-from openai import OpenAI, RateLimitError, APIConnectionError, InternalServerError, AuthenticationError
+from openai import (
+    OpenAI,
+    RateLimitError,
+    APIConnectionError,
+    InternalServerError,
+    AuthenticationError
+)
+
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
-import time
+
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +117,7 @@ class BudgetGuardian:
         self.tokens_used += tokens
 
         logger.info(
-            f"BudgetGuardian | {provider} +{tokens} tokens | total={self.tokens_used}"
+            f"[BudgetGuardian] provider={provider} +{tokens} tokens | total={self.tokens_used}"
         )
 
         if self.tokens_used > self.daily_limit:
@@ -121,14 +133,19 @@ class LLMClient:
     def __init__(self):
 
         self.guardian = BudgetGuardian()
+
         self.blacklisted_providers: Set[str] = set()
+
         self.active_providers = self._get_active_providers()
+
+    # ---------------------------
 
     def _get_active_providers(self) -> List[str]:
 
         active = []
 
         for provider, config in MODEL_CONFIGS.items():
+
             if provider in self.blacklisted_providers:
                 continue
 
@@ -142,9 +159,8 @@ class LLMClient:
 
         return active
 
-
     # ---------------------------
-    # MAIN GENERATE
+    # GENERATE
     # ---------------------------
 
     def generate(
@@ -160,22 +176,23 @@ class LLMClient:
         preferred = MODEL_TIERS.get(role, [])
 
         priority = [
-            p for p in preferred if p in self.active_providers and p not in self.blacklisted_providers
+            p for p in preferred
+            if p in self.active_providers and p not in self.blacklisted_providers
         ]
 
-        priority += [
+        fallback = [
             p for p in self.active_providers
             if p not in priority and p not in self.blacklisted_providers
         ]
 
-        if not priority:
-            # If everything is blacklisted, try resetting or just fail
-            logger.error("All providers are blacklisted or unavailable.")
-            raise RuntimeError("No working LLM providers found.")
+        providers = priority + fallback
+
+        if not providers:
+            raise RuntimeError("No working LLM providers available")
 
         last_error = None
 
-        for provider in priority:
+        for provider in providers:
 
             try:
 
@@ -189,25 +206,28 @@ class LLMClient:
                 )
 
             except AuthenticationError:
-                logger.error(f"❌ Provider {provider} hit 401 (Auth Error). Blacklisting for this session.")
+
+                logger.error(f"❌ {provider} AUTH ERROR → blacklisted")
+
                 self.blacklisted_providers.add(provider)
-                continue
 
             except RateLimitError:
-                logger.warning(f"⏳ Provider {provider} hit Rate Limit (429). Cooldown 2s and trying fallback...")
+
+                logger.warning(f"⏳ {provider} rate limit → fallback")
+
                 time.sleep(2)
-                continue
 
             except Exception as e:
+
                 logger.warning(
-                    f"⚠️ Provider {provider} failed: {str(e)[:120]}"
+                    f"⚠️ {provider} failed: {str(e)[:120]}"
                 )
+
                 last_error = e
 
         raise RuntimeError(
             f"All providers failed. Last error: {last_error}"
         )
-
 
     # ---------------------------
     # PROVIDER CALL
@@ -220,6 +240,7 @@ class LLMClient:
             (APIConnectionError, InternalServerError)
         )
     )
+
     def _call_provider(
         self,
         provider: str,
@@ -273,18 +294,14 @@ class LLMClient:
         self.guardian.add_usage(provider, total_tokens)
 
         if expect_json:
-
             data = self.extract_json(raw)
-
         else:
-
             data = raw
 
         return {
             "data": data,
             "usage": usage
         }
-
 
     # ---------------------------
     # JSON EXTRACTOR
@@ -294,33 +311,30 @@ class LLMClient:
 
         try:
             return json.loads(text)
-
         except Exception:
             pass
 
-        # markdown json block
+        # Markdown JSON block
         match = re.search(
-            r"```json\s*(.*?)\s*```",
+            r"```(?:json)?\s*(.*?)\s*```",
             text,
             re.DOTALL
         )
 
         if match:
-
             try:
                 return json.loads(match.group(1))
-            except:
+            except Exception:
                 pass
 
-        # first brace fallback
+        # Fallback
         start = text.find("{")
         end = text.rfind("}")
 
         if start != -1 and end != -1:
-
             try:
                 return json.loads(text[start:end + 1])
-            except:
+            except Exception:
                 pass
 
         raise ValueError(
