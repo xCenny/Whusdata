@@ -160,6 +160,16 @@ class LLMClient:
         return active
 
     # ---------------------------
+    # HOT RELOAD KEYS
+    # ---------------------------
+
+    def reload_keys(self) -> None:
+        from dotenv import load_dotenv
+        load_dotenv(override=True)
+        self.blacklisted_providers.clear()
+        self.active_providers = self._get_active_providers()
+
+    # ---------------------------
     # GENERATE
     # ---------------------------
 

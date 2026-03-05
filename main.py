@@ -83,6 +83,9 @@ def orchestrator_loop():
     
     while True:
         try:
+            # ── Hot Reload API Keys ──
+            llm.reload_keys()
+
             # ── UI Pause Check ──
             pipeline_flag = db.get_setting("pipeline_status")
             if pipeline_flag == "paused":

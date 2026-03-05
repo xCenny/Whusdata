@@ -47,7 +47,7 @@ st.sidebar.image("https://img.icons8.com/nolan/64/artificial-intelligence.png", 
 st.sidebar.title("🧠 Whusdata Pipeline")
 page = st.sidebar.radio(
     "Navigate",
-    ["📊 Dashboard", "📈 Drift Monitor", "💬 Conversations", "🎯 Weekly Planner", "⚙️ Pipeline Control", "📥 Export Dataset"],
+    ["📊 Dashboard", "📈 Drift Monitor", "💬 Conversations", "🎯 Weekly Planner", "⚙️ Pipeline Control", "🔑 API Keys", "📥 Export Dataset"],
     label_visibility="collapsed"
 )
 pipeline_status = db.get_setting("pipeline_status") or "running"
@@ -248,6 +248,83 @@ elif page == "⚙️ Pipeline Control":
             st.code("".join(lines[-50:] if len(lines) > 50 else lines), language="log")
     except FileNotFoundError:
         st.info("No log file yet.")
+
+# ═══════════════════════════════════════════════
+# 🔑 API KEYS
+# ═══════════════════════════════════════════════
+elif page == "🔑 API Keys":
+    st.title("🔑 API Key Management")
+    st.caption("Update provider API keys. The pipeline will automatically reload them on its next cycle.")
+    
+    # Simple helper to read and write .env
+    def load_env_vars():
+        env_dict = {}
+        try:
+            with open(".env", "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        env_dict[k] = v.strip('"\'')
+        except FileNotFoundError:
+            pass
+        return env_dict
+
+    def save_env_vars(env_dict):
+        # Read existing to keep comments/structure if possible, or just overwrite
+        lines = []
+        try:
+            with open(".env", "r") as f:
+                lines = f.readlines()
+        except FileNotFoundError:
+            pass
+            
+        new_lines = []
+        handled_keys = set()
+        for line in lines:
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#") and "=" in stripped:
+                k = stripped.split("=", 1)[0]
+                if k in env_dict:
+                    new_lines.append(f"{k}={env_dict[k]}\n")
+                    handled_keys.add(k)
+                else:
+                    new_lines.append(line)
+            else:
+                new_lines.append(line)
+                
+        # Add any new keys that weren't inherently present
+        for k, v in env_dict.items():
+            if k not in handled_keys and v:
+                new_lines.append(f"{k}={v}\n")
+                
+        with open(".env", "w") as f:
+            f.writelines(new_lines)
+
+    current_env = load_env_vars()
+    
+    with st.form("api_keys_form"):
+        st.subheader("Provider Keys")
+        
+        gemini = st.text_input("GEMINI_API_KEY", value=current_env.get("GEMINI_API_KEY", ""), type="password")
+        groq = st.text_input("GROQ_API_KEY", value=current_env.get("GROQ_API_KEY", ""), type="password")
+        openai = st.text_input("OPENAI_API_KEY", value=current_env.get("OPENAI_API_KEY", ""), type="password")
+        deepseek = st.text_input("DEEPSEEK_API_KEY", value=current_env.get("DEEPSEEK_API_KEY", ""), type="password")
+        
+        st.markdown("---")
+        submit = st.form_submit_button("💾 Save Keys", use_container_width=True)
+        
+        if submit:
+            updates = {
+                "GEMINI_API_KEY": gemini,
+                "GROQ_API_KEY": groq,
+                "OPENAI_API_KEY": openai,
+                "DEEPSEEK_API_KEY": deepseek
+            }
+            # Only save non-empty values or overwrite? Let's overwrite so they can delete a key
+            save_env_vars(updates)
+            st.success("✅ Keys saved successfully to `.env` file! Pipeline will hot-reload them.")
+            st.rerun()
 
 # ═══════════════════════════════════════════════
 # 📥 EXPORT DATASET
