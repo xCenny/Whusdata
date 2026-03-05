@@ -1,11 +1,8 @@
-import os
-import json
-import logging
-import re
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Set
 
-from openai import OpenAI, RateLimitError, APIConnectionError, InternalServerError
+from openai import OpenAI, RateLimitError, APIConnectionError, InternalServerError, AuthenticationError
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -46,13 +43,13 @@ MODEL_CONFIGS = {
     "google-flash-2": {
         "api_key_env": "GEMINI_API_KEY",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "model_name": "gemini-1.5-flash"
+        "model_name": "gemini-1.5-flash-latest"
     },
 
     "gemini-pro": {
         "api_key_env": "GEMINI_API_KEY",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "model_name": "gemini-1.5-pro"
+        "model_name": "gemini-1.5-pro-latest"
     },
 
     "google-pro-2": {
@@ -124,6 +121,7 @@ class LLMClient:
     def __init__(self):
 
         self.guardian = BudgetGuardian()
+        self.blacklisted_providers: Set[str] = set()
         self.active_providers = self._get_active_providers()
 
     def _get_active_providers(self) -> List[str]:
@@ -131,6 +129,8 @@ class LLMClient:
         active = []
 
         for provider, config in MODEL_CONFIGS.items():
+            if provider in self.blacklisted_providers:
+                continue
 
             if os.getenv(config["api_key_env"]):
                 active.append(provider)
@@ -160,16 +160,18 @@ class LLMClient:
         preferred = MODEL_TIERS.get(role, [])
 
         priority = [
-            p for p in preferred if p in self.active_providers
+            p for p in preferred if p in self.active_providers and p not in self.blacklisted_providers
         ]
 
         priority += [
             p for p in self.active_providers
-            if p not in priority
+            if p not in priority and p not in self.blacklisted_providers
         ]
 
         if not priority:
-            raise RuntimeError("No active providers")
+            # If everything is blacklisted, try resetting or just fail
+            logger.error("All providers are blacklisted or unavailable.")
+            raise RuntimeError("No working LLM providers found.")
 
         last_error = None
 
@@ -186,12 +188,20 @@ class LLMClient:
                     max_tokens
                 )
 
+            except AuthenticationError:
+                logger.error(f"❌ Provider {provider} hit 401 (Auth Error). Blacklisting for this session.")
+                self.blacklisted_providers.add(provider)
+                continue
+
+            except RateLimitError:
+                logger.warning(f"⏳ Provider {provider} hit Rate Limit (429). Cooldown 2s and trying fallback...")
+                time.sleep(2)
+                continue
+
             except Exception as e:
-
                 logger.warning(
-                    f"Provider {provider} failed: {str(e)[:120]}"
+                    f"⚠️ Provider {provider} failed: {str(e)[:120]}"
                 )
-
                 last_error = e
 
         raise RuntimeError(
@@ -204,10 +214,10 @@ class LLMClient:
     # ---------------------------
 
     @retry(
-        wait=wait_exponential(min=1, max=20),
-        stop=stop_after_attempt(3),
+        wait=wait_exponential(min=2, max=60),
+        stop=stop_after_attempt(5),
         retry=retry_if_exception_type(
-            (RateLimitError, APIConnectionError, InternalServerError)
+            (APIConnectionError, InternalServerError)
         )
     )
     def _call_provider(
