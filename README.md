@@ -40,6 +40,11 @@ Açık kaynaklı dil modellerini eğitmek (SFT / RLHF fine-tuning) amacıyla **7
 - **Kalibrasyon vs Üretim Modu**: İlk 500 üretim "Calibration" olarak işaretlenerek kalite kontrolü için optimize edilir.
 - **Model Gözlemlenebilirliği (Observability)**: Her üretimin `model_used` (örn: `llama-3.3-70b-versatile`) etiketi doğrudan UI'dan takip edilebilir.
 
+### 🌐 Derin Bilgi & Acımasız Kalite Kontrolü (Phase 6)
+- **Derin İnternet Bilgisi (Internet Knowledge)**: Research Ajanı artık sıradan Wikipedia sayfaları yerine; Kuantum Dolanıklığı, Epigenetik Miras, Fermi Paradoksu gibi akademik ve derin paradoksları araştırarak ana konuları belirler.
+- **Çeşitlilik Zorunluluğu (Topic Diversity)**: ChromaDB Vektör Veritabanı benzeşim eşiği %70'e çekilmiştir. Sistem, birbirine hafif benzeyen konuları bile reddeder; sadece tamamen 'Novel' (Özgün) konuları sisteme alır.
+- **Acımasız Eleştirmen (Brutal Critic)**: Critic Prompt'u "ChatGPT Sendromu"nu önlemek adına sıfır toleransla baştan yazıldı. Asistan, argümanında "Anlıyorum/Haklısın" gibi yumuşatıcı ifadeler ('Soft Validation') kullanırsa veya mantıksal boşluk bırakırsa o diyalog anında `FAIL` alır ve çöpe atılır. Sadece Okyanus Ötesi (OpenAI/Anthropic) seviyesindeki kusursuz diyaloglar `PASS` alabilir.
+
 ### 4 Ajan — 4 Görev
 
 | Ajan | Görev | Model |
