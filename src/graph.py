@@ -150,6 +150,9 @@ class PipelineGraph:
         return "next_turn"
 
     def node_generate_metadata(self, state: GraphState) -> Dict[str, Any]:
+        if state.get("rejected"):
+            return state
+            
         logger.info("Graph: Generating final conversation metadata...")
         history = state.get("conversation_history", [])
         prompt = METADATA_GENERATOR_PROMPT.format(history=history)

@@ -30,13 +30,13 @@ Conversation:
 {history}
 
 Output MUST be valid JSON only:
-{
+{{
     "persona_type": "The user's persona",
     "conflict_type": "The core conflict",
     "resolution_style": "How the assistant solved it",
     "difficulty_level": "Beginner, Intermediate, Advanced",
     "domain": "The topic domain"
-}
+}}
 """
 
 # Keep the legacy prompt for reference or temporary fallback

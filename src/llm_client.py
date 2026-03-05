@@ -11,14 +11,14 @@ logger = logging.getLogger(__name__)
 # Model Tier Definitions
 MODEL_TIERS = {
     "fast": ["gemini", "groq-fast"],
-    "reasoning": ["groq-large", "deepseek", "gemini-pro"]
+    "reasoning": ["gemini-pro", "groq-large", "deepseek"]
 }
 
 MODEL_CONFIGS = {
     "gemini": {
         "api_key_env": "GEMINI_API_KEY",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "model_name": "gemini-1.5-flash"
+        "model_name": "gemini-1.5-flash-latest"
     },
     "groq-fast": {
         "api_key_env": "GROQ_API_KEY",
@@ -34,6 +34,11 @@ MODEL_CONFIGS = {
         "api_key_env": "DEEPSEEK_API_KEY",
         "base_url": "https://api.deepseek.com/v1",
         "model_name": "deepseek-chat"
+    },
+    "gemini-pro": {
+        "api_key_env": "GEMINI_API_KEY",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "model_name": "gemini-1.5-pro-latest"
     }
 }
 
