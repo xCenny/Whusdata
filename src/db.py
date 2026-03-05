@@ -334,10 +334,10 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error logging failure: {e}")
 
-    def is_topic_novel(self, text: str, threshold: float = 0.85) -> bool:
+    def is_topic_novel(self, text: str, threshold: float = 0.70) -> bool:
         """
         Checks if the topic is novel using semantic search (cosine similarity).
-        threshold 0.85 means if similarity is > 0.85, it's considered a duplicate.
+        threshold 0.70 means if similarity is > 0.70, it's considered a duplicate.
         """
         if not self.chroma_client:
             return True # Fallback if no chromadb
@@ -348,11 +348,11 @@ class DatabaseManager:
         )
         
         # ChromaDB cosine returns distances (1 - cosine_similarity).
-        # Distance 0 means identical, Distance > 0.15 means novel enough (similarity < 0.85)
+        # Distance 0 means identical, Distance > 0.30 means novel enough (similarity < 0.70)
         if results and results['distances'] and len(results['distances'][0]) > 0:
             distance = results['distances'][0][0]
             if distance < (1.0 - threshold):
-                logger.warning(f"Topic not novel. Distance: {distance} (Threshold distance: {1.0 - threshold})")
+                logger.warning(f"Topic not novel enough. Distance: {distance:.3f} (Required: >{1.0 - threshold:.3f})")
                 return False
         return True
 

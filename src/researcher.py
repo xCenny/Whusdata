@@ -12,8 +12,16 @@ class ResearchAgent:
     def __init__(self, db_manager: DatabaseManager, llm_client: LLMClient):
         self.db = db_manager
         self.llm = llm_client
-        # Add random base keywords to kick off wiki searches if no topic comes to mind
-        self.seed_words = ["history", "space", "psychology", "technology", "biology", "philosophy", "culture", "art", "economics", "physics", "cooking", "music"]
+        # Deep internet knowledge seeds to trigger complex Wikipedia exploration
+        self.seed_words = [
+            "Quantum entanglement paradoxes", "Epigenetic inheritance", "Bronze Age Collapse mathematics",
+            "Non-Euclidean geometry principles", "Neuroplasticity in adult brains", "Cryptographic hash collisions",
+            "Thermodynamic entropy paradoxes", "Linguistic relativity", "The Fermi Paradox solutions",
+            "Socio-cultural evolution theories", "Post-structuralism concepts", "Advanced robotics kinematics",
+            "Geopolitical choke points", "Paleoclimatology data", "Microbiome symbiosis",
+            "Theoretical astrophysics anomalies", "Behavioral economics heuristics", "Ancient metallurgy techniques",
+            "CRISPR off-target effects", "Turing machine limitations", "Dark matter detection methods"
+        ]
 
     def _get_search_words(self) -> list:
         """Prioritizes UI-injected keywords over random seed words."""
@@ -23,7 +31,7 @@ class ResearchAgent:
             logger.info(f"Research Agent using {len(words)} user-injected keywords from Weekly Planner.")
             return words
         else:
-            logger.info("No target keywords set. Falling back to random Wikipedia exploration.")
+            logger.info("No target keywords set. Falling back to complex internet knowledge exploration.")
             return random.sample(self.seed_words, min(3, len(self.seed_words)))
 
     def fetch_wikipedia_summaries(self, num_results: int = 3) -> List[str]:

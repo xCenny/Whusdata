@@ -44,17 +44,22 @@ Output MUST be valid JSON only:
 # Keep the legacy prompt for reference or temporary fallback
 MASTER_SYSTEM_PROMPT = """You are a Synthetic RLHF Dataset Generator... [LEGACY]"""
 
-CRITIC_SYSTEM_PROMPT = """You are a strict, independent LLM Data Quality Critic.
+CRITIC_SYSTEM_PROMPT = """You are a BRUTALLY STRICT, independent LLM Data Quality Critic for an advanced SFT dataset.
 Your job is to examine a simulated 3-turn conversation, verify the metadata, evaluate it across 4 dimensions, and assign a weighted confidence score alongside declaring a debate winner.
 
-Dimensions & Weights:
-1. memory_consistency (0.35): Did the Assistant contradict itself across turns? Did it remember the user's earlier points?
-2. logic (0.30): Are the Assistant's claims factually and logically sound? Did it properly debunk the User's fallacy?
-3. conflict_resolution (0.25): Did the Assistant successfully guide the adversarial user toward understanding?
-4. empathy (0.10): Was the Assistant polite and patient, without being patronizing or robotic?
+CRITICAL RULES FOR PASSING:
+1. You must be UNFORGIVING. If the Assistant makes ANY logical leap, uses soft validation ("I understand", "You make a point"), or fails to cite specific concrete evidence, you MUST fail it.
+2. A "PASS" should only be awarded to conversations that belong in a top-tier OpenAI/Anthropic RLHF dataset. Mediocrity is a FAIL.
+3. The Assistant MUST win the debate definitively through superior reasoning. If the user's fallacy isn't completely dismantled, FAIL it.
+
+Dimensions & Weights (BE HARSH):
+1. memory_consistency (0.35): Did the Assistant contradict itself? Did it track the full context perfectly?
+2. logic (0.30): Are the Assistant's claims factually and logically sound? Did it properly debunk the User's fallacy using deep scientific/historical/mathematical facts?
+3. conflict_resolution (0.25): Did the Assistant successfully trap the adversarial user in their own logical inconsistency without being rude?
+4. empathy (0.10): Was the Assistant professional, assertive, yet polite?
 
 Failure Types (REQUIRED — always set one):
-NONE, LOGICAL_ERROR, TONE_TOO_AGGRESSIVE, INCONSISTENT_MEMORY, WEAK_CORRECTION, OVERCORRECTION, HALLUCINATION, IRRELEVANT_DRIFT.
+NONE, LOGICAL_ERROR, TONE_TOO_AGGRESSIVE, INCONSISTENT_MEMORY, WEAK_CORRECTION, OVERCORRECTION, HALLUCINATION, IRRELEVANT_DRIFT, SOFT_VALIDATION_DETECTED.
 
 Output MUST be valid JSON only, exactly in this structure:
 {
@@ -67,7 +72,7 @@ Output MUST be valid JSON only, exactly in this structure:
         "empathy": 0.0-1.0
     },
     "failure_type": "NONE or a specific error tag (REQUIRED even if PASS)",
-    "feedback": "Concise explanation of your grading",
+    "feedback": "Concise, brutal explanation of your grading.",
     "verified_metadata": {
         "persona_type": "...",
         "conflict_type": "...",
@@ -79,11 +84,11 @@ Output MUST be valid JSON only, exactly in this structure:
 """
 
 REFLECTION_SYSTEM_PROMPT = """You are an Expert Conversation Replanner.
-The previous conversation was rejected by the Critic.
-Your prompt task is to fix the Assistant's responses so they perfectly address the Critic's feedback.
+The previous conversation was rejected by the brutal Critic.
+Your prompt task is to fix the Assistant's responses so they perfectly address the Critic's harsh feedback.
 
 CRITICAL RULE:
-You MUST keep the exact same "user" turns from the original draft. Do NOT change the user's prompt, only rewrite the "assistant" turns to be more consistent, logical, or empathetic as required.
+You MUST keep the exact same "user" turns from the original draft. Do NOT change the user's prompt, only rewrite the "assistant" turns to be more consistent, logically flawless, and strictly factual without using soft-validation words.
 
 Output MUST be valid JSON only, providing ONLY the updated conversation array:
 {
@@ -95,13 +100,14 @@ Output MUST be valid JSON only, providing ONLY the updated conversation array:
 }
 """
 
-RESEARCHER_SYSTEM_PROMPT = """You are a highly curious Knowledge Architect.
-Analyze general knowledge sources or Wikipedia excerpts and generate a novel Topic JSON for our dataset pipeline.
-Rule: The topic must be highly specific, quirky, or thought-provoking enough that an Adversarial User could have a strong (and potentially flawed) opinion about it.
+RESEARCHER_SYSTEM_PROMPT = """You are a highly curious Knowledge Architect scavenging the deepest layers of internet knowledge.
+Analyze the provided internet/Wikipedia excerpts and generate a NOVEL, OBSCURE, and HIGHLY COMPLEX Topic JSON for our dataset pipeline.
+Rule 1: DO NOT generate basic trivia. The topic must be highly specific, obscure, or an advanced academic/scientific concept (e.g., 'The P vs NP Problem's material implications', 'Epigenetic trauma inheritance mechanisms', 'Bronze Age Collapse economic networks').
+Rule 2: It must be controversial, misunderstood, or complex enough that an Adversarial User could confidently hold a severely flawed opinion about it.
 
 Output MUST be valid JSON only:
 {
-  "topic_title": "Specific Topic Title",
-  "topic_description": "Short description of the topic and the potential controversy/misconception surrounding it."
+  "topic_title": "Highly Specific & Obscure Topic Title",
+  "topic_description": "Deep, complex description of the topic and the profound misconception surrounding it."
 }
 """
