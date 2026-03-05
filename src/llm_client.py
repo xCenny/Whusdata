@@ -122,6 +122,9 @@ class LLMClient:
         # Cooldown dictionary: Provider Config Name -> exact time it unbans
         self.cooldowns: Dict[str, datetime] = {}
         
+        # Track rotation to ensure absolute round-robin distribution
+        self.rr_counters: Dict[str, int] = {}
+        
         self.active_providers_pool = self._get_active_providers()
 
     # ---------------------------
@@ -209,15 +212,25 @@ class LLMClient:
             if p not in preferred and k not in self.cooldowns
         ]
 
-        # Shuffle to load balance across keys if there are multiple for the same provider/models
-        import random
-        random.shuffle(priority_slots)
-        random.shuffle(fallback_slots)
+        # Sort to ensure stable, predictable order before rotating
+        priority_slots.sort(key=lambda x: (x[0], x[1]))
+        fallback_slots.sort(key=lambda x: (x[0], x[1]))
         
+        # Combine all slots
         provider_slots = priority_slots + fallback_slots
 
         if not provider_slots:
             raise RuntimeError("No working LLM providers available (all disabled, missing, or all keys in cooldown).")
+
+        # Strict Round-Robin Rotation across ALL active models
+        if "global" not in self.rr_counters:
+            self.rr_counters["global"] = 0
+            
+        idx = self.rr_counters["global"] % len(provider_slots)
+        self.rr_counters["global"] += 1
+        
+        # Shift the array so the chosen model is attempted first, and the rest act as fallbacks
+        provider_slots = provider_slots[idx:] + provider_slots[:idx]
 
         last_error = None
 
