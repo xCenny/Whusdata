@@ -10,35 +10,45 @@ logger = logging.getLogger(__name__)
 
 # Model Tier Definitions
 MODEL_TIERS = {
-    "fast": ["gemini", "groq-fast"],
-    "reasoning": ["gemini-pro", "groq-large", "deepseek"]
+    "fast": ["gemini-flash", "groq-fast", "openai-mini"],
+    "reasoning": ["gemini-pro", "groq-large", "openai-large", "deepseek"]
 }
 
 MODEL_CONFIGS = {
-    "gemini": {
+    "gemini-flash": {
         "api_key_env": "GEMINI_API_KEY",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "model_name": "gemini-1.5-flash-latest"
+        "model_name": "gemini-1.5-flash"
+    },
+    "gemini-pro": {
+        "api_key_env": "GEMINI_API_KEY",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "model_name": "gemini-1.5-pro"
     },
     "groq-fast": {
         "api_key_env": "GROQ_API_KEY",
         "base_url": "https://api.groq.com/openai/v1",
-        "model_name": "llama3-8b-8192"
+        "model_name": "llama-3.1-8b-instant"
     },
     "groq-large": {
         "api_key_env": "GROQ_API_KEY",
         "base_url": "https://api.groq.com/openai/v1",
         "model_name": "llama-3.3-70b-versatile"
     },
+    "openai-mini": {
+        "api_key_env": "OPENAI_API_KEY",
+        "base_url": "https://api.openai.com/v1",
+        "model_name": "gpt-4o-mini"
+    },
+    "openai-large": {
+        "api_key_env": "OPENAI_API_KEY",
+        "base_url": "https://api.openai.com/v1",
+        "model_name": "gpt-4o"
+    },
     "deepseek": {
         "api_key_env": "DEEPSEEK_API_KEY",
         "base_url": "https://api.deepseek.com/v1",
         "model_name": "deepseek-chat"
-    },
-    "gemini-pro": {
-        "api_key_env": "GEMINI_API_KEY",
-        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "model_name": "gemini-1.5-pro-latest"
     }
 }
 
