@@ -126,24 +126,28 @@ class LLMClient:
         if start != -1 and end != -1:
             try:
                 return json.loads(response_text[start:end+1])
-            except json.JSONDecodeError as e:
-                logger.error(f"Fallback JSON parsing failed: {e}")
+            except json.JSONDecodeError:
                 pass
 
-        raise ValueError("Failed to parse valid JSON from LLM output. Raw Output truncated: " + response_text[:200])
+        # Final fallback: if no JSON is expected and we just want the string, 
+        # but here we ARE expecting JSON, so we raise.
+        raise ValueError(f"Failed to parse valid JSON from LLM output. Raw Output truncated: {response_text[:200]}")
 
-    def generate(self, prompt: str, system_message: str = "", temperature: float = 0.7, provider_override: str = None) -> Dict[str, Any]:
-        """Generates content and returns both the parsed JSON and usage metadata."""
+    def generate(self, prompt: str, system_message: str = "", temperature: float = 0.7, provider_override: str = None, expect_json: bool = True) -> Dict[str, Any]:
+        """Generates content and returns both the result and usage metadata."""
         messages = []
         if system_message:
             messages.append({"role": "system", "content": system_message})
         messages.append({"role": "user", "content": prompt})
 
         raw_content, usage = self._make_api_call(messages, temperature=temperature, provider_override=provider_override)
-        parsed_json = self.extract_json(raw_content)
         
-        # Merge usage into the result for easy access, or wrap it
+        if expect_json:
+            parsed_data = self.extract_json(raw_content)
+        else:
+            parsed_data = raw_content
+            
         return {
-            "data": parsed_json,
+            "data": parsed_data,
             "usage": usage
         }

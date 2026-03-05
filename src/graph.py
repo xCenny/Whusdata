@@ -98,10 +98,8 @@ class PipelineGraph:
             # Actually, I updated generate to return {"data": parsed_json, "usage": usage}.
             # If it's a raw string, extract_json returns it if it can't find {}.
             
-            result_wrapper = self.llm.generate(prompt=prompt, system_message=system_msg, temperature=0.8)
+            result_wrapper = self.llm.generate(prompt=prompt, system_message=system_msg, temperature=0.8, expect_json=False)
             content = result_wrapper.get("data")
-            if isinstance(content, dict): # Should not happen with USER_TURN_PROMPT but handle safely
-                content = content.get("content", str(content))
             
             usage = result_wrapper.get("usage", {})
             
