@@ -6,7 +6,7 @@ from src.db import DatabaseManager
 
 # ── Page Config ──
 st.set_page_config(
-    page_title="UHSBot — Data Pipeline Dashboard",
+    page_title="Whusdata — Data Pipeline Dashboard",
     page_icon="🧠",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -44,7 +44,7 @@ db = get_db()
 
 # ── Sidebar ──
 st.sidebar.image("https://img.icons8.com/nolan/64/artificial-intelligence.png", width=50)
-st.sidebar.title("🧠 UHSBot Pipeline")
+st.sidebar.title("🧠 Whusdata Pipeline")
 page = st.sidebar.radio(
     "Navigate",
     ["📊 Dashboard", "📈 Drift Monitor", "💬 Conversations", "🎯 Weekly Planner", "⚙️ Pipeline Control", "📥 Export Dataset"],
@@ -280,7 +280,7 @@ elif page == "📥 Export Dataset":
                 st.download_button(
                     label=f"⬇️ Download {len(data)} conversations (.jsonl)",
                     data=jsonl,
-                    file_name=f"uhsbot_sft_{datetime.now().strftime('%Y%m%d')}.jsonl",
+                    file_name=f"whusdata_sft_{datetime.now().strftime('%Y%m%d')}.jsonl",
                     mime="application/jsonl",
                     use_container_width=True
                 )

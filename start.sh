@@ -1,7 +1,7 @@
 #!/bin/bash
 # Entrypoint script: starts both the pipeline orchestrator and the Streamlit UI
 
-echo "🚀 Starting UHSBot Pipeline Orchestrator..."
+echo "🚀 Starting Whusdata Pipeline Orchestrator..."
 python -u main.py &
 
 echo "🌐 Starting Streamlit Admin Dashboard on port 8501..."

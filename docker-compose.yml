@@ -1,9 +1,9 @@
 version: "3.8"
 
 services:
-  uhsbot-pipeline:
+  whusdata-pipeline:
     build: .
-    container_name: uhsbot-pipeline
+    container_name: whusdata-pipeline
     restart: unless-stopped
     env_file:
       - .env

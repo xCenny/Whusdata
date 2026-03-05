@@ -1,4 +1,4 @@
-# UHSBot — Autonomous Synthetic Data Pipeline 🧠⚡
+# WHUSDATA — Autonomous Synthetic Data Pipeline 🧠⚡
 
 Açık kaynaklı dil modellerini eğitmek (SFT / RLHF fine-tuning) amacıyla **7/24 otonom** çalışan, **çatışma mühendisliği (Conflict-Engineered)** ile yüksek kaliteli çoklu-turlu (multi-turn) sentetik sohbet verisi üreten bir **Çoklu-Ajan** sistemidir.
 
@@ -73,8 +73,8 @@ Tarayıcıdan `http://SUNUCU_IP:8501` adresine girerek erişilir.
 ### Lokal (Windows / Linux)
 ```bash
 # 1. Klonla & Hazırla
-git clone https://github.com/KULLANICI/uhsbot.git
-cd uhsbot
+git clone https://github.com/xCenny/Whusdata.git
+cd Whusdata
 cp .env.example .env # .env dosyasını düzenle
 
 # 2. Kur & Başlat
@@ -98,7 +98,7 @@ docker-compose up -d --build
 ## 📁 Proje Yapısı
 
 ```
-uhsbot/
+whusdata/
 ├── main.py                 # Orchestrator — ana döngü
 ├── src/
 │   ├── db.py               # SQLite + ChromaDB (WAL mode)
