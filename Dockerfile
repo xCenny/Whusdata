@@ -2,10 +2,8 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Python'un src klasörünü bulabilmesi için yolu ekleyelim
 ENV PYTHONPATH=/app
 
-# Sistem bağımlılıkları
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
