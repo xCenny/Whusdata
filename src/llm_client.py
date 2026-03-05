@@ -134,11 +134,11 @@ class LLMClient:
         active = []
         now = datetime.now()
 
-        # Clear expired cooldowns
-        expired = [p for p, unban in self.cooldowns.items() if now > unban]
-        for p in expired:
-            logger.info(f"🟢 Cooldown expired for {p}. Restoring provider.")
-            del self.cooldowns[p]
+        # Clear expired cooldowns (cooldowns are now tracked by API key)
+        expired = [k for k, unban in self.cooldowns.items() if now > unban]
+        for k in expired:
+            logger.info("🟢 Cooldown expired for an API key. Restoring it to rotation.")
+            del self.cooldowns[k]
 
         for provider, config in MODEL_CONFIGS.items():
             # Check UI toggle
@@ -146,14 +146,9 @@ class LLMClient:
             is_active = self.db.get_setting(f"provider_{provider_base}")
             if is_active == "false":
                 continue
-                
-            # Check Cooldown
-            if provider in self.cooldowns:
-                continue
 
             # Gather all env vars starting with prefix
             prefix = config["api_key_env_prefix"]
-            # To support rotation, we find keys exactly matching or like GEMINI_API_KEY_1
             keys = []
             for k, v in os.environ.items():
                 if k.startswith(prefix) and v:
@@ -163,10 +158,13 @@ class LLMClient:
             keys = list(set(keys))
             
             for key_val in keys:
+                # Check Key-Level Cooldown
+                if key_val in self.cooldowns:
+                    continue
                 active.append((provider, key_val))
 
         if not active:
-            logger.error("❌ NO API KEYS FOUND OR ALL PROVIDERS IN COOLDOWN/DISABLED.")
+            logger.error("❌ NO API KEYS FOUND OR ALL KEYS IN COOLDOWN/DISABLED.")
         else:
             logger.info(f"✅ Active providers loaded: {len(active)} key slots available.")
 
@@ -197,24 +195,21 @@ class LLMClient:
         max_tokens: int = 1500
     ) -> Dict[str, Any]:
 
-        # Ensure our pool is somewhat fresh, though orchestrator calls reload_keys() too.
-        # self.active_providers_pool = self._get_active_providers()
-        
         preferred = MODEL_TIERS.get(role, [])
 
-        # Priority includes providers in the preferred tier that are active and not in cooldown
+        # Priority includes providers in the preferred tier that are active and whose KEY is not in cooldown
         priority_slots = [
             (p, k) for p, k in self.active_providers_pool
-            if p in preferred and p not in self.cooldowns
+            if p in preferred and k not in self.cooldowns
         ]
         
-        # Fallback are active providers not in preferred tier and not in cooldown
+        # Fallback are active providers not in preferred tier and whose KEY is not in cooldown
         fallback_slots = [
             (p, k) for p, k in self.active_providers_pool
-            if p not in preferred and p not in self.cooldowns
+            if p not in preferred and k not in self.cooldowns
         ]
 
-        # Shuffle to load balance across keys if there are multiple for the same provider
+        # Shuffle to load balance across keys if there are multiple for the same provider/models
         import random
         random.shuffle(priority_slots)
         random.shuffle(fallback_slots)
@@ -222,12 +217,16 @@ class LLMClient:
         provider_slots = priority_slots + fallback_slots
 
         if not provider_slots:
-            raise RuntimeError("No working LLM providers available (all disabled, missing, or in cooldown).")
+            raise RuntimeError("No working LLM providers available (all disabled, missing, or all keys in cooldown).")
 
         last_error = None
 
         for provider, api_key in provider_slots:
             try:
+                # Double-check cooldown just in case it was added in the same loop
+                if api_key in self.cooldowns:
+                    continue
+                    
                 return self._call_provider(
                     provider,
                     api_key,
@@ -239,18 +238,18 @@ class LLMClient:
                 )
 
             except AuthenticationError:
-                logger.error(f"❌ {provider} AUTH ERROR. Placing in 2-hour cooldown.")
-                self.cooldowns[provider] = datetime.now() + timedelta(hours=2)
+                logger.error(f"❌ AUTH ERROR on {provider}. Placing specific API Key in 2-hour cooldown.")
+                self.cooldowns[api_key] = datetime.now() + timedelta(hours=2)
 
             except RateLimitError:
-                logger.warning(f"⏳ {provider} RATE LIMIT. Placing in 2-hour cooldown.")
-                self.cooldowns[provider] = datetime.now() + timedelta(hours=2)
+                logger.warning(f"⏳ RATE LIMIT on {provider}. Placing specific API Key in 2-hour cooldown.")
+                self.cooldowns[api_key] = datetime.now() + timedelta(hours=2)
 
             except Exception as e:
                 logger.warning(f"⚠️ {provider} failed: {str(e)[:120]}")
                 last_error = e
 
-        raise RuntimeError(f"All available providers failed. Last error: {last_error}")
+        raise RuntimeError(f"All available keys/providers failed. Last error: {last_error}")
 
     # ---------------------------
     # PROVIDER CALL
