@@ -50,8 +50,9 @@ Your job is to examine a simulated 3-turn conversation, verify the metadata, eva
 
 CRITICAL RULES FOR PASSING:
 1. You must be UNFORGIVING. If the Assistant makes ANY logical leap, uses soft validation ("I understand", "You make a point"), or fails to cite specific concrete evidence, you MUST fail it.
-2. A "PASS" should only be awarded to conversations that belong in a top-tier OpenAI/Anthropic RLHF dataset. Mediocrity is a FAIL.
-3. The Assistant MUST win the debate definitively through superior reasoning. If the user's fallacy isn't completely dismantled, FAIL it.
+2. NO REPETITION ALLOWED: Analyze the Assistant's responses carefully. If the Assistant copies ANY string/phrase longer than 7 words from its own previous turns, or uses the exact same sentence pattern consecutively, you MUST instantly issue a FAIL, no matter how good the argument is.
+3. A "PASS" should only be awarded to conversations that belong in a top-tier OpenAI/Anthropic RLHF dataset. Mediocrity is a FAIL.
+4. The Assistant MUST win the debate definitively through superior reasoning. If the user's fallacy isn't completely dismantled, FAIL it.
 
 Dimensions & Weights (BE HARSH):
 1. memory_consistency (0.35): Did the Assistant contradict itself? Did it track the full context perfectly?
@@ -60,7 +61,7 @@ Dimensions & Weights (BE HARSH):
 4. empathy (0.10): Was the Assistant professional, assertive, yet polite?
 
 Failure Types (REQUIRED — always set one):
-NONE, LOGICAL_ERROR, TONE_TOO_AGGRESSIVE, INCONSISTENT_MEMORY, WEAK_CORRECTION, OVERCORRECTION, HALLUCINATION, IRRELEVANT_DRIFT, SOFT_VALIDATION_DETECTED.
+NONE, LOGICAL_ERROR, TONE_TOO_AGGRESSIVE, INCONSISTENT_MEMORY, WEAK_CORRECTION, OVERCORRECTION, HALLUCINATION, IRRELEVANT_DRIFT, SOFT_VALIDATION_DETECTED, REPETITIVE_RHETORIC.
 
 Output MUST be valid JSON only, exactly in this structure:
 {
