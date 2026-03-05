@@ -10,17 +10,27 @@ logger = logging.getLogger(__name__)
 
 # Model Tier Definitions
 MODEL_TIERS = {
-    "fast": ["gemini-flash", "groq-fast", "openai-mini"],
-    "reasoning": ["gemini-pro", "groq-large", "openai-large", "deepseek"]
+    "fast": ["gemini-flash", "google-flash-2", "groq-fast", "openai-mini"],
+    "reasoning": ["gemini-pro", "google-pro-2", "groq-large", "openai-large", "deepseek"]
 }
 
 MODEL_CONFIGS = {
     "gemini-flash": {
         "api_key_env": "GEMINI_API_KEY",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "model_name": "gemini-1.5-flash"
+        "model_name": "gemini-2.0-flash" 
+    },
+    "google-flash-2": {
+        "api_key_env": "GEMINI_API_KEY",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "model_name": "gemini-1.5-flash" # Fallback if 2.0 fails
     },
     "gemini-pro": {
+        "api_key_env": "GEMINI_API_KEY",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "model_name": "gemini-2.0-pro"
+    },
+    "google-pro-2": {
         "api_key_env": "GEMINI_API_KEY",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
         "model_name": "gemini-1.5-pro"
