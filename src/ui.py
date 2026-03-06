@@ -90,7 +90,7 @@ if page == "📊 Dashboard":
     t1, t2, t3, t4 = st.columns(4)
     with t1: st.markdown(f'<div class="metric-card tier-gold"><h2>{stats["tier_1"]}</h2><p>🥇 Tier 1 (Gold ≥0.85)</p></div>', unsafe_allow_html=True)
     with t2: st.markdown(f'<div class="metric-card tier-silver"><h2>{stats["tier_2"]}</h2><p>🥈 Tier 2 (Silver ≥0.70)</p></div>', unsafe_allow_html=True)
-    with t3: st.markdown(f'<div class="metric-card tier-bronze"><h2>{stats["tier_3"]}</h2><p>🥉 Tier 3 (Bronze ≥0.60)</p></div>', unsafe_allow_html=True)
+    with t3: st.markdown(f'<div class="metric-card tier-bronze"><h2>{stats["tier_3"]}</h2><p>🥉 Tier 3 (Bronze ≥0.65)</p></div>', unsafe_allow_html=True)
     with t4: st.markdown(f'<div class="metric-card"><h2>{stats["avg_confidence"]}</h2><p>Avg Confidence</p></div>', unsafe_allow_html=True)
     
     st.markdown("---")

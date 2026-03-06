@@ -28,7 +28,7 @@ def classify_tier(confidence: float) -> int:
         return 1  # Gold
     elif confidence >= 0.70:
         return 2  # Silver
-    elif confidence >= 0.60:
+    elif confidence >= 0.65:
         return 3  # Bronze
     return 0  # Discard
 
