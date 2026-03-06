@@ -213,7 +213,7 @@ class LLMClient:
         temperature: float = 0.7,
         role: str = "fast",
         expect_json: bool = True,
-        max_tokens: int = 1500,
+        max_tokens: int = 4000,
         force_model: str = None
     ) -> Dict[str, Any]:
 

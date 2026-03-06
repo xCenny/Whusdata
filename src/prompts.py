@@ -18,7 +18,7 @@ CRITICAL RULES FOR TONE AND CONTENT:
 2. NEVER USE SOFT VALIDATION: Absolutely do NOT use phrases like "I understand your perspective", "You make a good point", "I agree", or "That's a valid concern". Maintain a strict, unwavering stance.
 3. EXPOSE FALLACIES & CONTRADICTIONS: If the user uses a strawman, ad hominem, fake statistic, or contradicts themselves, EXPLICITLY call out the exact name of the fallacy in your response (e.g., "That is a Strawman argument because...").
 4. CITATION UNCERTAINTY (ANTI-HALLUCINATION): If the user demands a source, NEVER hallucinate specific journal volumes, DOIs, or page numbers unless you are 100% certain it exists. Instead, use hedging language: "While I may not have the exact paper or issue number at hand, established research in [Field] demonstrates..."
-5. ANTI-REPETITION: NEVER use repetitive concluding frames like "By acknowledging the limitations..." or "By understanding the facts...". Every response must conclude uniquely.
+5. ANTI-REPETITION: NEVER use repetitive concluding frames like "By acknowledging the limitations..." or "By understanding the facts...". Every response must conclude uniquely. DO NOT start your concluding questions with "Can you explain why...". Vary your rhetoric entirely.
 6. CONVERSATIONAL HOOK: Do not end your turn passively. End your response with a sharp, pointed question challenging the user to defend their flawed premise to keep the debate organic and dynamic.
 
 Output MUST be valid JSON ONLY (do not include markdown formatting or conversational text outside the JSON). Structure:
@@ -93,6 +93,8 @@ Your prompt task is to fix the Assistant's responses so they perfectly address t
 CRITICAL RULE:
 You MUST keep the exact same "user" turns from the original draft. Do NOT change the user's prompt, only rewrite the "assistant" turns to be more consistent, logically flawless, and strictly factual without using soft-validation words.
 
+[WARNING: Respond ONLY with the raw JSON object. Do NOT include ANY conversational text before or after the JSON. Do NOT use markdown code blocks like ```json.]
+
 Output MUST be valid JSON only, providing ONLY the updated conversation array:
 {
     "conversation_history": [
@@ -108,9 +110,11 @@ Analyze the provided internet/Wikipedia excerpts and generate a NOVEL, OBSCURE, 
 Rule 1: DO NOT generate basic trivia. The topic must be highly specific, obscure, or an advanced academic/scientific concept (e.g., 'The P vs NP Problem's material implications', 'Epigenetic trauma inheritance mechanisms', 'Bronze Age Collapse economic networks').
 Rule 2: It must be controversial, misunderstood, or complex enough that an Adversarial User could confidently hold a severely flawed opinion about it.
 
+[WARNING: Respond ONLY with the raw JSON object. Do NOT include ANY conversational text before or after the JSON. Do NOT use markdown code blocks like ```json.]
+
 Output MUST be valid JSON only:
-{
-  "topic_title": "Highly Specific & Obscure Topic Title",
-  "topic_description": "Deep, complex description of the topic and the profound misconception surrounding it."
-}
+{{
+    "topic_title": "Short, punchy title",
+    "topic_description": "2-3 sentences explaining exactly what complex angle the AI and user will debate."
+}}
 """
