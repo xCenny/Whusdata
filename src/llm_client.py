@@ -145,13 +145,17 @@ class LLMClient:
             del self.cooldowns[k]
 
         import os
-        from dotenv import dotenv_values
 
-        # 1. Read directly from the .env file to bypass os.environ caching
+        # 1. Read directly from the .env file with native python to ensure perfect parity with UI
         env_vars = {}
         if os.path.exists(".env"):
-            env_vars = dotenv_values(".env")
-            
+            with open(".env", "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        env_vars[k.strip()] = v.strip().strip("'\"")
+                        
         # 2. Merge with os.environ for bare-metal docker/system vars
         for _k, _v in os.environ.items():
             if _k not in env_vars:
@@ -194,8 +198,6 @@ class LLMClient:
     # ---------------------------
 
     def reload_keys(self) -> None:
-        from dotenv import load_dotenv
-        load_dotenv(override=True)
         # We don't clear cooldowns automatically on reload to prevent immediate re-banning loops, 
         # but if we wanted to we could. For now, let cooldowns expire naturally or via DB.
         self.active_providers_pool = self._get_active_providers()
