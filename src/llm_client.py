@@ -392,35 +392,34 @@ class LLMClient:
     # ---------------------------
 
     def extract_json(self, text: str) -> Dict[str, Any]:
+        text = text.strip()
 
+        # 1. Try raw parse first
         try:
             return json.loads(text)
         except Exception:
             pass
 
-        # Markdown JSON block
-        match = re.search(
-            r"```(?:json)?\s*(.*?)\s*```",
-            text,
-            re.DOTALL
-        )
-
+        # 2. Try markdown blocks
+        match = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL)
         if match:
             try:
                 return json.loads(match.group(1))
             except Exception:
                 pass
 
-        # Fallback
-        start = text.find("{")
-        end = text.rfind("}")
-
-        if start != -1 and end != -1:
+        # 3. Aggressive extraction of the FIRST valid JSON object block
+        # This handles cases where LLM says: "Sure, here is the output: \n { ... }"
+        start_idx = text.find("{")
+        end_idx = text.rfind("}")
+        
+        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+            subset = text[start_idx:end_idx + 1]
             try:
-                return json.loads(text[start:end + 1])
+                return json.loads(subset)
             except Exception:
+                # 4. If there are trailing commas or slight syntax errors inside the block, 
+                # let it fail gracefully so it gets retried.
                 pass
 
-        raise ValueError(
-            f"JSON parse failed. Output: {text[:300]}"
-        )
+        raise ValueError(f"JSON parse failed. Output: {text[:300]}")
