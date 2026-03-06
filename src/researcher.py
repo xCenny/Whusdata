@@ -23,27 +23,28 @@ class ResearchAgent:
             "CRISPR off-target effects", "Turing machine limitations", "Dark matter detection methods"
         ]
 
-    def _get_search_words(self) -> list:
-        """Prioritizes UI-injected keywords over random seed words."""
+    def _get_search_items(self) -> List[Dict[str, Any]]:
+        """Prioritizes UI-injected keywords over random seed words. Returns a list of dicts with ids."""
         active_keywords = self.db.get_active_keywords()
         if active_keywords:
-            words = [kw["keyword"] for kw in active_keywords]
-            logger.info(f"Research Agent using {len(words)} user-injected keywords from Weekly Planner.")
-            return words
+            logger.info(f"Research Agent using {len(active_keywords)} user-injected keywords from Weekly Planner.")
+            return [{"id": kw["id"], "word": kw["keyword"], "is_target": True} for kw in active_keywords]
         else:
             logger.info("No target keywords set. Falling back to complex internet knowledge exploration.")
-            return random.sample(self.seed_words, min(3, len(self.seed_words)))
+            words = random.sample(self.seed_words, min(3, len(self.seed_words)))
+            return [{"id": None, "word": w, "is_target": False} for w in words]
 
-    def fetch_wikipedia_summaries(self, num_results: int = 3) -> List[str]:
-        """Fetches random Wikipedia summaries as seed material."""
+    def fetch_wikipedia_summaries(self, num_results: int = 3) -> List[Dict[str, Any]]:
+        """Fetches random Wikipedia summaries as seed material, returning dicts with keyword IDs."""
         summaries = []
         try:
             wikipedia.set_lang("en")
-            words = self._get_search_words()
+            items = self._get_search_items()
             
-            for word in words[:num_results]:
+            for item in items[:num_results]:
+                word = item["word"]
                 try:
-                    search_results = wikipedia.search(word, results=3)
+                    search_results = wikipedia.search(word, results=10)
                     if not search_results:
                         continue
                     
@@ -51,8 +52,12 @@ class ResearchAgent:
                     summary = wikipedia.summary(page_title, sentences=5, auto_suggest=False)
                     
                     text = f"Wiki Title: {page_title}. Summary: {summary}"
-                    summaries.append(text)
-                except wikipedia.exceptions.DisambiguationError as e:
+                    summaries.append({
+                        "text": text,
+                        "keyword_id": item["id"],
+                        "word": word
+                    })
+                except wikipedia.exceptions.DisambiguationError:
                     logger.debug(f"Disambiguation hit for {word}, skipping.")
                 except wikipedia.exceptions.PageError:
                     logger.debug(f"Page not found for {word}, skipping.")
@@ -73,12 +78,15 @@ class ResearchAgent:
         3. Check Diversity (DB + Chroma)
         4. Store in DB
         """
-        abstracts = self.fetch_wikipedia_summaries(num_results=3)
+        abstracts_data = self.fetch_wikipedia_summaries(num_results=3)
         inserted_count = 0
         
-        for abstract in abstracts:
+        for data in abstracts_data:
+            abstract = data["text"]
+            kw_id = data["keyword_id"]
+            
             # Check if the raw abstract itself is totally duplicate in vector db
-            if not self.db.is_topic_novel(abstract, threshold=0.90): # higher threshold for raw text
+            if not self.db.is_topic_novel(abstract, threshold=0.70): # higher threshold for raw text
                 logger.info("Wiki topic similar to existing knowledge base, skipping generation.")
                 continue
                 
@@ -107,6 +115,10 @@ class ResearchAgent:
                 row_id = self.db.insert_seed_topic(topic_data=result_json, raw_text_for_embedding=abstract)
                 if row_id:
                     inserted_count += 1
+                    # Deactivate the injected keyword if it was successfully consumed into a novel topic
+                    if kw_id is not None:
+                        self.db.deactivate_keyword(kw_id)
+                        logger.info(f"✅ Target keyword ID {kw_id} successfully converted and deactivated.")
                     
             except Exception as e:
                 logger.error(f"Error during research generation for abstract: {e}")
