@@ -141,6 +141,7 @@ class LLMClient:
         expired = [k for k, unban in self.cooldowns.items() if now > unban]
         for k in expired:
             logger.info("🟢 Cooldown expired for an API key. Restoring it to rotation.")
+            self.db.update_api_health(k, "Unknown", "ACTIVE", None, None)
             del self.cooldowns[k]
 
         for provider, config in MODEL_CONFIGS.items():
@@ -164,6 +165,8 @@ class LLMClient:
                 # Check Key-Level Cooldown
                 if key_val in self.cooldowns:
                     continue
+                # Mark as loaded / active
+                self.db.update_api_health(key_val, provider_base.capitalize(), "ACTIVE", None, None)
                 active.append((provider, key_val))
 
         if not active:
@@ -270,17 +273,23 @@ class LLMClient:
                     max_tokens
                 )
 
-            except AuthenticationError:
+            except AuthenticationError as e:
                 logger.error(f"❌ AUTH ERROR on {provider}. Placing specific API Key in 2-hour cooldown.")
-                self.cooldowns[api_key] = datetime.now() + timedelta(hours=2)
+                unban_time = datetime.now() + timedelta(hours=2)
+                self.cooldowns[api_key] = unban_time
+                self.db.update_api_health(api_key, provider.split('-')[0].capitalize(), "ERROR", f"Auth Error: {str(e)[:100]}", unban_time.isoformat())
 
-            except RateLimitError:
+            except RateLimitError as e:
                 logger.warning(f"⏳ RATE LIMIT on {provider}. Placing specific API Key in 2-hour cooldown.")
-                self.cooldowns[api_key] = datetime.now() + timedelta(hours=2)
+                unban_time = datetime.now() + timedelta(hours=2)
+                self.cooldowns[api_key] = unban_time
+                self.db.update_api_health(api_key, provider.split('-')[0].capitalize(), "COOLDOWN", f"Rate Limit: {str(e)[:100]}", unban_time.isoformat())
 
             except Exception as e:
                 logger.warning(f"⚠️ {provider} failed: {str(e)[:120]}")
                 last_error = e
+                # Do not blacklist for other random transient errors, but log them to DB
+                self.db.update_api_health(api_key, provider.split('-')[0].capitalize(), "ACTIVE", f"Transient: {str(e)[:100]}", None)
 
         raise RuntimeError(f"All available keys/providers failed. Last error: {last_error}")
 

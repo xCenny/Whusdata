@@ -123,6 +123,15 @@ class DatabaseManager:
                         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                     );
                 """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS api_health (
+                        api_key TEXT PRIMARY KEY,
+                        provider TEXT,
+                        status TEXT DEFAULT 'ACTIVE',
+                        last_error TEXT,
+                        cooldown_until DATETIME
+                    );
+                """)
                 conn.commit()
                 logger.info("Database initialized successfully with WAL mode.")
         except Exception as e:
@@ -158,6 +167,26 @@ class DatabaseManager:
         with self.get_connection() as conn:
             conn.execute("UPDATE target_keywords SET status = 'DONE' WHERE id = ?", (keyword_id,))
             conn.commit()
+
+    # ── API Health Helpers ──
+    def update_api_health(self, api_key: str, provider: str, status: str, last_error: str = None, cooldown_until: str = None):
+        """Upserts health status (ACTIVE, ERROR, COOLDOWN) for a specific API Key."""
+        with self.get_connection() as conn:
+            conn.execute("""
+                INSERT INTO api_health (api_key, provider, status, last_error, cooldown_until)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(api_key) DO UPDATE SET
+                    status=excluded.status,
+                    last_error=excluded.last_error,
+                    cooldown_until=excluded.cooldown_until
+            """, (api_key, provider, status, last_error, cooldown_until))
+            conn.commit()
+
+    def get_api_health(self) -> Dict[str, Dict[str, Any]]:
+        """Returns a dict of api_key -> health data for UI rendering."""
+        with self.get_connection() as conn:
+            rows = conn.execute("SELECT * FROM api_health").fetchall()
+            return {r["api_key"]: dict(r) for r in rows}
 
     # ── Generation Count Helper ──
     def get_generation_count(self) -> int:

@@ -350,6 +350,24 @@ elif page == "🔑 API Keys":
     with st.form("api_keys_form"):
         st.info("💡 You can enter multiple API keys for a provider by placing each key on a new line.")
         
+        # Display API Health Statuses
+        health_data = db.get_api_health()
+        if health_data:
+            st.markdown("### 📡 API Health Monitor")
+            for k, info in health_data.items():
+                status = info.get("status", "ACTIVE")
+                provider = info.get("provider", "Unknown")
+                err = info.get("last_error", "")
+                masked_key = f"{k[:8]}***{k[-4:]}" if len(k) > 12 else "****"
+                
+                if status == "ACTIVE":
+                    st.success(f"**{provider}** ({masked_key}): 🟢 OK - {err or 'No recent errors'}")
+                elif status == "COOLDOWN":
+                    st.warning(f"**{provider}** ({masked_key}): ⏳ COOLDOWN (Rate Limit) - {err} | Until: {info.get('cooldown_until', 'Unknown')}")
+                elif status == "ERROR":
+                    st.error(f"**{provider}** ({masked_key}): ❌ AUTH ERROR - {err}")
+            st.markdown("---")
+        
         updates = {}
         db_updates = {}
         
