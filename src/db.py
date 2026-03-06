@@ -263,6 +263,7 @@ class DatabaseManager:
             rows = conn.execute(query, params).fetchall()
             results = []
             for r in rows:
+                r_dict = dict(r)
                 try:
                     convo = json.loads(r["conversation_history"])
                     clean = []
@@ -274,16 +275,16 @@ class DatabaseManager:
                             
                     # Construct rich dataset point
                     data_point = {
-                        "topic": r["topic"],
-                        "domain": r["domain"],
-                        "difficulty": r["difficulty_level"],
-                        "persona": r["persona_type"],
-                        "scenario_conflict": r["conflict_type"],
-                        "winner": r.get("winner", "Unknown"),
-                        "logic_score": r.get("logic_score", 0.0),
-                        "critic_confidence": r["critic_confidence"],
-                        "memory_score": r["memory_consistency_score"],
-                        "model_used": r.get("model_used", "unknown"),
+                        "topic": r_dict["topic"],
+                        "domain": r_dict["domain"],
+                        "difficulty": r_dict["difficulty_level"],
+                        "persona": r_dict["persona_type"],
+                        "scenario_conflict": r_dict["conflict_type"],
+                        "winner": r_dict.get("winner", "Unknown"),
+                        "logic_score": r_dict.get("logic_score", 0.0),
+                        "critic_confidence": r_dict["critic_confidence"],
+                        "memory_score": r_dict["memory_consistency_score"],
+                        "model_used": r_dict.get("model_used", "unknown"),
                         "messages": clean
                     }
                     results.append(data_point)
