@@ -144,6 +144,19 @@ class LLMClient:
             self.db.update_api_health(k, "Unknown", "ACTIVE", None, None)
             del self.cooldowns[k]
 
+        import os
+        from dotenv import dotenv_values
+
+        # 1. Read directly from the .env file to bypass os.environ caching
+        env_vars = {}
+        if os.path.exists(".env"):
+            env_vars = dotenv_values(".env")
+            
+        # 2. Merge with os.environ for bare-metal docker/system vars
+        for _k, _v in os.environ.items():
+            if _k not in env_vars:
+                env_vars[_k] = _v
+
         for provider, config in MODEL_CONFIGS.items():
             # Check UI toggle
             provider_base = provider.split('-')[0]
@@ -154,8 +167,8 @@ class LLMClient:
             # Gather all env vars starting with prefix
             prefix = config["api_key_env_prefix"]
             keys = []
-            for k, v in os.environ.items():
-                if k.startswith(prefix) and v:
+            for k, v in env_vars.items():
+                if k and k.startswith(prefix) and v:
                     keys.append(v)
             
             # Remove exact duplicates just in case
