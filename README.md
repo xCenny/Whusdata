@@ -122,9 +122,9 @@ whusdata/
 ├── main.py                 # Orchestrator — ana döngü
 ├── src/
 │   ├── db.py               # SQLite + ChromaDB (WAL mode)
-│   ├── llm_client.py       # Multi-provider LLM client (Gemini/Groq/DeepSeek)
-│   ├── graph.py             # LangGraph state machine (Generate → Critic → Reflect)
-│   ├── researcher.py        # Wikipedia scraper + UI keyword entegrasyonu
+│   ├── llm_client.py       # Multi-provider LLM client & Regex JSON Extractor
+│   ├── graph.py             # LangGraph state machine (Adversarial Persona Loops)
+│   ├── researcher.py        # Multi-Source Fetcher (Wikipedia Jump & ArXiv API)
 │   ├── prompts.py           # Teacher, Critic ve Reflection system prompt'ları
 │   └── ui.py                # Streamlit Admin Dashboard
 ├── start.sh                 # Docker entrypoint (pipeline + streamlit)

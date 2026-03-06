@@ -183,7 +183,7 @@ elif page == "💬 Conversations":
             tc2.markdown(f"**Conflict:** `{convo.get('conflict_type', '-')}`")
             tc3.markdown(f"**Domain:** `{convo.get('domain', '-')}`")
             tc4.markdown(f"**Tier:** `{tier}`")
-            tc5.markdown(f"**🤖 Model:** `{convo.get('model_used', 'unknown')}`")
+            tc5.markdown(f"**🤖 Gen:** `{convo.get('model_used', 'unknown')}` | **⚖️ Critic:** `{convo.get('critic_model_used', 'unknown')}`")
             st.markdown("---")
             try:
                 history = json.loads(convo.get("conversation_history", "[]"))

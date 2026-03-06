@@ -73,6 +73,10 @@ class DatabaseManager:
                     cursor.execute("ALTER TABLE generations ADD COLUMN winner TEXT DEFAULT 'Unknown';")
                 except sqlite3.OperationalError:
                     pass
+                try:
+                    cursor.execute("ALTER TABLE generations ADD COLUMN critic_model_used TEXT DEFAULT 'unknown';")
+                except sqlite3.OperationalError:
+                    pass
                     
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS cost_log (
@@ -330,9 +334,9 @@ class DatabaseManager:
                         persona_type, conflict_type, resolution_style, difficulty_level, domain,
                         tier, critic_status, critic_confidence, memory_consistency_score,
                         logic_score, winner, failure_type,
-                        generation_mode, model_used, sha256_hash
+                        generation_mode, model_used, critic_model_used, sha256_hash
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     topic,
                     convo_json,
@@ -349,6 +353,7 @@ class DatabaseManager:
                     critic_data.get("winner", "Unknown"),
                     critic_data.get("failure_type", "NONE"),
                     mode,
+                    metadata.get("model_used", "unknown"),
                     critic_data.get("model_used", "unknown"),
                     sha256_hash
                 ))
