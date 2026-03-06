@@ -239,21 +239,27 @@ class LLMClient:
             priority_slots.sort(key=lambda x: (x[0], x[1]))
             fallback_slots.sort(key=lambda x: (x[0], x[1]))
             
-            # Combine all slots
+            # Rotate priority slots independently
+            if priority_slots:
+                if role not in self.rr_counters:
+                    self.rr_counters[role] = 0
+                idx = self.rr_counters[role] % len(priority_slots)
+                self.rr_counters[role] += 1
+                priority_slots = priority_slots[idx:] + priority_slots[:idx]
+                
+            # Rotate fallback slots independently
+            if fallback_slots:
+                if "fallback" not in self.rr_counters:
+                    self.rr_counters["fallback"] = 0
+                f_idx = self.rr_counters["fallback"] % len(fallback_slots)
+                self.rr_counters["fallback"] += 1
+                fallback_slots = fallback_slots[f_idx:] + fallback_slots[:f_idx]
+            
+            # Combine all slots: Priority models attempted first, fallbacks last
             provider_slots = priority_slots + fallback_slots
 
             if not provider_slots:
                 raise RuntimeError("No working LLM providers available (all disabled, missing, or all keys in cooldown).")
-
-            # Strict Round-Robin Rotation across ALL active models
-            if "global" not in self.rr_counters:
-                self.rr_counters["global"] = 0
-                
-            idx = self.rr_counters["global"] % len(provider_slots)
-            self.rr_counters["global"] += 1
-            
-            # Shift the array so the chosen model is attempted first, and the rest act as fallbacks
-            provider_slots = provider_slots[idx:] + provider_slots[:idx]
 
         last_error = None
 
