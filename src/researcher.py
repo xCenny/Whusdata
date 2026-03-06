@@ -23,25 +23,78 @@ class ResearchAgent:
             "CRISPR off-target effects", "Turing machine limitations", "Dark matter detection methods"
         ]
 
-    def _get_search_items(self) -> List[Dict[str, Any]]:
-        """Prioritizes UI-injected keywords over random seed words. Returns a list of dicts with ids."""
+    def _get_search_items(self, num_results: int = 3) -> List[Dict[str, Any]]:
+        """
+        Combines active user-injected keywords (weighted by priority) with random seed words.
+        Auto-deactivates keywords that have expired (past their week_label).
+        """
+        import datetime
+        import re
+        
+        now = datetime.datetime.now()
+        current_year = now.year
+        # UI uses %U which is Sunday-based week number
+        current_week = int(now.strftime("%U"))
+        
         active_keywords = self.db.get_active_keywords()
-        if active_keywords:
-            logger.info(f"Research Agent using {len(active_keywords)} user-injected keywords from Weekly Planner.")
-            return [{"id": kw["id"], "word": kw["keyword"], "is_target": True} for kw in active_keywords]
-        else:
-            logger.info("No target keywords set. Falling back to complex internet knowledge exploration.")
-            words = random.sample(self.seed_words, min(3, len(self.seed_words)))
-            return [{"id": None, "word": w, "is_target": False} for w in words]
+        valid_keywords = []
+        
+        for kw in active_keywords:
+            # Parse "Week 09 - 2026"
+            week_label = kw.get("week_label", "")
+            match = re.search(r"Week\s+(\d+)\s*-\s*(\d+)", week_label, re.IGNORECASE)
+            if match:
+                kw_week = int(match.group(1))
+                kw_year = int(match.group(2))
+                
+                # If year is in the past, or same year but week is in the past -> Expired
+                if kw_year < current_year or (kw_year == current_year and kw_week < current_week):
+                    logger.info(f"Keyword '{kw['keyword']}' has expired (Target: Week {kw_week:02d} - {kw_year}, Current: Week {current_week:02d} - {current_year}). Deactivating.")
+                    self.db.deactivate_keyword(kw["id"])
+                    continue
+                    
+            valid_keywords.append(kw)
+            
+        pool = []
+        
+        # 1. Add valid keywords based on priority weight
+        priority_weights = {"critical": 5, "high": 3, "normal": 1}
+        for kw in valid_keywords:
+            weight = priority_weights.get(kw.get("priority", "normal").lower(), 1)
+            for _ in range(weight):
+                pool.append({"id": kw["id"], "word": kw["keyword"], "is_target": True})
+                
+        # 2. Add random complex topics to maintain mixed diversity
+        # If we have targets, we mix in some randoms. If we don't have targets, we fill entirely with randoms.
+        num_random = max(1, num_results - 1) if valid_keywords else num_results
+        
+        # Handle case where sample is larger than population
+        sample_size = min(num_random, len(self.seed_words))
+        random_seeds = random.sample(self.seed_words, sample_size)
+        
+        for w in random_seeds:
+            pool.append({"id": None, "word": w, "is_target": False})
+            
+        # 3. Shuffle the hybrid pool
+        random.shuffle(pool)
+        
+        # 4. Pick top N
+        selected = pool[:num_results]
+        
+        target_count = sum(1 for item in selected if item["is_target"])
+        random_count = len(selected) - target_count
+        logger.info(f"Research Search Mix: {target_count} target keywords, {random_count} random seeds.")
+        
+        return selected
 
     def fetch_wikipedia_summaries(self, num_results: int = 3) -> List[Dict[str, Any]]:
         """Fetches random Wikipedia summaries as seed material, returning dicts with keyword IDs."""
         summaries = []
         try:
             wikipedia.set_lang("en")
-            items = self._get_search_items()
+            items = self._get_search_items(num_results=num_results)
             
-            for item in items[:num_results]:
+            for item in items:
                 word = item["word"]
                 try:
                     search_results = wikipedia.search(word, results=10)
@@ -115,10 +168,10 @@ class ResearchAgent:
                 row_id = self.db.insert_seed_topic(topic_data=result_json, raw_text_for_embedding=abstract)
                 if row_id:
                     inserted_count += 1
-                    # Deactivate the injected keyword if it was successfully consumed into a novel topic
+                    # Phase 8: Target Keywords are no longer deactivated automatically here.
+                    # They remain ACTIVE for continuous deep research until the week expires or manual deletion.
                     if kw_id is not None:
-                        self.db.deactivate_keyword(kw_id)
-                        logger.info(f"✅ Target keyword ID {kw_id} successfully converted and deactivated.")
+                        logger.info(f"✅ Topic generated for continuous target keyword ID {kw_id}.")
                     
             except Exception as e:
                 logger.error(f"Error during research generation for abstract: {e}")
