@@ -45,6 +45,11 @@ Açık kaynaklı dil modellerini eğitmek (SFT / RLHF fine-tuning) amacıyla **7
 - **Çeşitlilik Zorunluluğu (Topic Diversity)**: ChromaDB Vektör Veritabanı benzeşim eşiği %70'e çekilmiştir. Sistem, birbirine hafif benzeyen konuları bile reddeder; sadece tamamen 'Novel' (Özgün) konuları sisteme alır.
 - **Acımasız Eleştirmen (Brutal Critic)**: Critic Prompt'u "ChatGPT Sendromu"nu önlemek adına sıfır toleransla baştan yazıldı. Asistan, argümanında "Anlıyorum/Haklısın" gibi yumuşatıcı ifadeler ('Soft Validation') kullanırsa veya mantıksal boşluk bırakırsa o diyalog anında `FAIL` alır ve çöpe atılır. Sadece Okyanus Ötesi (OpenAI/Anthropic) seviyesindeki kusursuz diyaloglar `PASS` alabilir.
 
+### 🎯 Odaklı Derin Araştırma & Baş Hakem Sistemi (Phase 7 & 8)
+- **Atanmış Baş Hakem (Dedicated Critic Model)**: UI üzerinden `Pipeline Control` sayfasından, tüm konuşmaları değerlendirecek tek bir **Baş Hakem LLM** (Örn: Llama-3.3-70b veya Gemini-2.5-Pro) seçebilirsiniz. Diğer ajanlar kendi aralarında paslaşıp üretse de, son kararı her zaman güvendiğiniz bu baş hakem verir; böylece Tier 1 standartları platformlar arası şaşmaz.
+- **Sürekli Odaklı Araştırma (Continuous Deep Research)**: "Weekly Focus Planner" üzerinden verdiğiniz hedefler (örn: Kuantum Fiziği) artık tek seferlik değildir. Sistem o hedefe bir "Ağırlık Derecesi (Priority)" atar (`Critical` konular 5 kat daha sık araştırılır) ve belirlenen hafta bitene kadar o konunun dibine kadar iner. Veri zehirlenmesini önlemek için de araya rastgele Wikipedia ansiklopedi bilgileri harmanlar (Hybrid Mix).
+- **API Sağlık Monitörü (API Health Monitor)**: Sisteme girdiğiniz tüm API Anahtarları UI'da anlık olarak izlenir. Bir anahtar `Authentication Error` veya `Rate Limit` yediğinde bunu anında kırmızı/sarı SQLite uyarılarıyla dashboard'a yansıtır ve o anahtarı otomatik 2 saatlik cezaya (Cooldown) gönderip diğerlerinden tam gaz devam eder.
+
 ### 4 Ajan — 4 Görev
 
 | Ajan | Görev | Model |
