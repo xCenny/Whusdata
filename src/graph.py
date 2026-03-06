@@ -44,11 +44,23 @@ def get_user_tactic(turn: int) -> str:
             "Attack the AI using a Logical Fallacy (e.g., Strawman, Ad Hominem, Appeal to Authority).",
             "Nitpick a minor detail from the AI's response and blow it completely out of proportion."
         ])
-    else:
+    elif turn == 3:
         return random.choice([
             "Attempt a Contradiction Trap ('Earlier you said X, now you're saying Y. Which is it?').",
             "Aggressively dismiss the AI's evidence as biased, fake, or irrelevant.",
             "Stubbornly double down on your original fallacy and refuse to concede."
+        ])
+    elif turn == 4:
+        return random.choice([
+            "Employ a False Dilemma ('So you are saying it is either 100% perfect or completely useless?').",
+            "Move the Goalposts: Completely change your standard of proof now that the AI has answered your previous point.",
+            "Feign ignorance and pretend you don't understand the AI's core explanation."
+        ])
+    else:  # Turn 5 and 6
+        return random.choice([
+            "Resort to a pure emotional appeal or anecdotal evidence that 'proves' you are right.",
+            "Try to quickly change the subject to a completely different but related provocative topic.",
+            "Make one final desperate logical leap to try and win the argument before giving up."
         ])
 
 class GraphState(TypedDict):
@@ -106,7 +118,12 @@ class PipelineGraph:
         # Set persona if 1st turn
         if turn == 1:
             persona = get_random_persona()
-            state["metadata"] = {"persona_type": persona, "conflict_type": "Variable Tactic"}
+            target_turns = random.randint(4, 6) # Generate 4 to 6 turns (8 to 12 messages)
+            state["metadata"] = {
+                "persona_type": persona, 
+                "conflict_type": "Variable Tactic",
+                "target_turns": target_turns
+            }
         else:
             persona = state["metadata"].get("persona_type", "Skeptical")
 
@@ -135,7 +152,8 @@ class PipelineGraph:
             return {
                 "conversation_history": history,
                 "current_turn": turn,
-                "usage_log": state.get("usage_log", []) + [usage]
+                "usage_log": state.get("usage_log", []) + [usage],
+                "metadata": state.get("metadata", {})
             }
         except Exception as e:
             logger.error(f"User turn generation failed: {e}")
@@ -174,8 +192,9 @@ class PipelineGraph:
     def edge_after_assistant(self, state: GraphState) -> str:
         if state.get("rejected"):
             return "finalize"
-        turn = state.get("current_turn", 1)
-        if turn > 3:
+        turn = state.get("current_turn", 1) # This is actually the NEXT turn number now
+        target_turns = state.get("metadata", {}).get("target_turns", 3)
+        if turn > target_turns:
             return "finalize"
         return "next_turn"
 
