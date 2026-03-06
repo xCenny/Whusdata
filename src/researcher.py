@@ -102,6 +102,20 @@ class ResearchAgent:
                         continue
                     
                     page_title = random.choice(search_results)
+                    
+                    # Phase 12: Wikipedia Random Walk (Wiki-Jumping)
+                    # 60% chance to jump to a random link on the page to prevent infinite duplicate loops
+                    if random.random() < 0.60:
+                        try:
+                            # We must load the page to get its links
+                            page = wikipedia.page(page_title, auto_suggest=False)
+                            if page.links:
+                                jumped_title = random.choice(page.links)
+                                logger.info(f"Wiki-Jump! 🦘 Branching from '{page_title}' -> '{jumped_title}'")
+                                page_title = jumped_title
+                        except Exception as e:
+                            logger.debug(f"Wiki-Jump failed for {page_title}, falling back to original. Reason: {e}")
+                            
                     summary = wikipedia.summary(page_title, sentences=5, auto_suggest=False)
                     
                     text = f"Wiki Title: {page_title}. Summary: {summary}"
