@@ -14,15 +14,42 @@ from src.prompts import (
 
 logger = logging.getLogger(__name__)
 
-# ── Personas & Conflict Types for User Simulation ──
-ADVERSARIAL_PERSONAS = [
-    "Skeptical Scientist", "Confidently Incorrect Layman", "Aggressive Debunker", 
-    "Conspiracy Theorist", "Nitpicking Expert", "Provocative Journalist"
-]
-CONFLICT_STRATEGIES = [
-    "Factual Misconception", "Logical Fallacy (Strawman)", "Moving the Goalposts",
-    "Emotional Bias", "Demanding Impossible Evidence", "False Dilemma"
-]
+# ── Personas, Lengths & Tactics ──
+def get_random_persona() -> str:
+    r = random.random()
+    if r < 0.30: # 30% Hostile/Troll
+        return random.choice(["Aggressive Debunker", "Angry Troll", "Hostile Critic"])
+    elif r < 0.70: # 40% Normal Skeptical
+        return random.choice(["Skeptical Scientist", "Nitpicking Expert", "Devils Advocate", "Cautious Reviewer"])
+    elif r < 0.90: # 20% Educational
+        return random.choice(["Curious Student", "Inquisitive Researcher", "Layman seeking truth"])
+    else: # 10% Absurd
+        return random.choice(["Conspiracy Theorist", "Flat-Earther", "Sci-Fi Fanatic"])
+
+def get_length_directive() -> str:
+    r = random.random()
+    if r < 0.30:
+        return "SHORT (2-3 sentences max, strictly punchy and direct)"
+    elif r < 0.70:
+        return "MEDIUM (4-6 sentences, balanced counter-argument)"
+    else:
+        return "LONG (Comprehensive and detailed rebuttal)"
+
+def get_user_tactic(turn: int) -> str:
+    if turn == 1:
+        return "Assert a deeply flawed initial claim or severe misunderstanding with absolute confidence."
+    elif turn == 2:
+        return random.choice([
+            "Demand highly specific evidence/sources for the AI's previous claim. ('Source?', 'Who ran this study?')",
+            "Attack the AI using a Logical Fallacy (e.g., Strawman, Ad Hominem, Appeal to Authority).",
+            "Nitpick a minor detail from the AI's response and blow it completely out of proportion."
+        ])
+    else:
+        return random.choice([
+            "Attempt a Contradiction Trap ('Earlier you said X, now you're saying Y. Which is it?').",
+            "Aggressively dismiss the AI's evidence as biased, fake, or irrelevant.",
+            "Stubbornly double down on your original fallacy and refuse to concede."
+        ])
 
 class GraphState(TypedDict):
     topic: str
@@ -76,18 +103,18 @@ class PipelineGraph:
         turn = state.get("current_turn", 1)
         history = state.get("conversation_history", [])
         
-        # Set persona/conflict if 1st turn
+        # Set persona if 1st turn
         if turn == 1:
-            persona = random.choice(ADVERSARIAL_PERSONAS)
-            conflict = random.choice(CONFLICT_STRATEGIES)
-            state["metadata"] = {"persona_type": persona, "conflict_type": conflict}
+            persona = get_random_persona()
+            state["metadata"] = {"persona_type": persona, "conflict_type": "Variable Tactic"}
         else:
             persona = state["metadata"].get("persona_type", "Skeptical")
-            conflict = state["metadata"].get("conflict_type", "General Doubt")
 
-        logger.info(f"Graph: Generating User Turn {turn} (Persona: {persona})")
+        tactic = get_user_tactic(turn)
+
+        logger.info(f"Graph: Generating User Turn {turn} (Persona: {persona}) | Tactic: {tactic[:40]}...")
         
-        system_msg = USER_TURN_PROMPT.format(persona_type=persona, conflict_type=conflict)
+        system_msg = USER_TURN_PROMPT.format(persona_type=persona, user_tactic=tactic)
         prompt = f"Topic: {state['topic']}\n\nConversation so far:\n{history}\n\nGenerate your turn:"
         
         try:
@@ -117,12 +144,15 @@ class PipelineGraph:
     def node_assistant_turn(self, state: GraphState) -> Dict[str, Any]:
         turn = state.get("current_turn", 1)
         history = state.get("conversation_history", [])
-        logger.info(f"Graph: Generating Assistant Turn {turn}")
+        length_directive = get_length_directive()
         
+        logger.info(f"Graph: Generating Assistant Turn {turn} | Length: {length_directive[:13]}")
+        
+        system_msg = ASSISTANT_TURN_PROMPT.format(length_directive=length_directive)
         prompt = f"Topic: {state['topic']}\n\nConversation thus far:\n{history}\n\nGenerate your response (JSON):"
         
         try:
-            result_wrapper = self.llm.generate(prompt=prompt, system_message=ASSISTANT_TURN_PROMPT, temperature=0.3)
+            result_wrapper = self.llm.generate(prompt=prompt, system_message=system_msg, temperature=0.3)
             data = result_wrapper.get("data", {})
             usage = result_wrapper.get("usage", {})
             

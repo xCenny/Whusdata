@@ -95,6 +95,16 @@ if page == "📊 Dashboard":
     
     st.markdown("---")
     
+    st.subheader("📊 14-Day Token Usage Tracker")
+    token_chart_data = db.get_daily_token_usage_chart(days=14)
+    if token_chart_data:
+        df_tokens = pd.DataFrame(token_chart_data).set_index("date")
+        st.bar_chart(df_tokens["total_tokens"], color="#00d2ff")
+    else:
+        st.info("No token usage data recorded yet.")
+        
+    st.markdown("---")
+    
     # Row 3: Charts
     ch1, ch2 = st.columns(2)
     with ch1:

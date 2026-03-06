@@ -218,6 +218,17 @@ class DatabaseManager:
                 "discarded": discarded
             }
 
+    def get_daily_token_usage_chart(self, days: int = 14) -> List[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                "SELECT DATE(timestamp) as date, SUM(prompt_tokens + completion_tokens) as total_tokens "
+                "FROM cost_log "
+                "WHERE timestamp >= date('now', ?) "
+                "GROUP BY DATE(timestamp) ORDER BY date ASC",
+                (f"-{days} days",)
+            ).fetchall()
+            return [dict(r) for r in rows]
+
     def get_failure_type_breakdown(self) -> List[Dict[str, Any]]:
         with self.get_connection() as conn:
             rows = conn.execute(
@@ -334,7 +345,7 @@ class DatabaseManager:
                     critic_data.get("status", "FAIL"),
                     critic_data.get("confidence", 0.0),
                     critic_data.get("memory_consistency", 0.0),
-                    critic_data.get("logic_score", 0.0),
+                    critic_data.get("logic_and_fallacy_handling", 0.0),
                     critic_data.get("winner", "Unknown"),
                     critic_data.get("failure_type", "NONE"),
                     mode,
