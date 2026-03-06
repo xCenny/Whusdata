@@ -50,13 +50,21 @@ Açık kaynaklı dil modellerini eğitmek (SFT / RLHF fine-tuning) amacıyla **7
 - **Sürekli Odaklı Araştırma (Continuous Deep Research)**: "Weekly Focus Planner" üzerinden verdiğiniz hedefler (örn: Kuantum Fiziği) artık tek seferlik değildir. Sistem o hedefe bir "Ağırlık Derecesi (Priority)" atar (`Critical` konular 5 kat daha sık araştırılır) ve belirlenen hafta bitene kadar o konunun dibine kadar iner. Veri zehirlenmesini önlemek için de araya rastgele Wikipedia ansiklopedi bilgileri harmanlar (Hybrid Mix).
 - **API Sağlık Monitörü (API Health Monitor)**: Sisteme girdiğiniz tüm API Anahtarları UI'da anlık olarak izlenir. Bir anahtar `Authentication Error` veya `Rate Limit` yediğinde bunu anında kırmızı/sarı SQLite uyarılarıyla dashboard'a yansıtır ve o anahtarı otomatik 2 saatlik cezaya (Cooldown) gönderip diğerlerinden tam gaz devam eder.
 
+### 🥊 Adversarial Reasoning Evolution (Phase 9 & 10)
+- **Gelişmiş Sentetik Akıl Yürütme (8-12 Mesaj)**: Diyaloglar artık sabit 3-tur değil, otonom olarak **4 ile 6 tur (8-12 toplam mesaj)** arasında derinleşmektedir. Bu, modelin uzun süreli tartışmaları ve karmaşık mantık zincirlerini (synthetic reasoning) öğrenmesini sağlar.
+- **Dengeli Persona Dağılımı**: "Twitter Trolü" eğitimini önlemek için personallar dengelenmiştir: %30 Hostile/Troll, %40 Normal Şüpheci, %20 Eğitici/Öğrenci ve %10 Absürt/Komplo Teorisyeni.
+- **Değişken Cevap Uzunlukları**: LLM'lerin bitmek bilmeyen paragraf yazma (500-word essay) sendromu aşılmış; %30 Kısa/Punchy (2-3 cümle), %40 Orta ve %30 Detaylı açıklama dengesi getirilmiştir.
+- **Mantık Saldırıları (Logic Attacks)**: Kullanıcı ajanı; *Strawman*, *Ad Hominem*, *False Dilemma* gibi safsataları bilinçli kullanır; asistanın daha önce söylediği ile çeliştiğini iddia eden tuzaklar kurar (Contradiction Trap) ve sürekli kanıt ("Source?") talep eder.
+- **Halüsinasyon Koruması (Citation Hedging)**: Asistan, kullanıcıdan gelen kaynak taleplerine karşılık sahte DOI veya dergi sayısı uydurmak yerine, "Citation Uncertainty" kuralı ile belirsizliği dürüstçe itiraf edip genel literatür bilgisi sunmaya (Hedging) zorlanır.
+- **Token Kullanım Grafikleri**: Dashboard üzerinde son 14 günlük token harcamalarınızı gösteren interaktif bar tabloları eklenmiştir.
+
 ### 4 Ajan — 4 Görev
 
 | Ajan | Görev | Model |
 |---|---|---|
 | **Research Agent** | Konu bulur, ChromaDB ile çeşitliliği garanti eder ve maliyeti loglar | Varsayılan (Gemini) |
-| **Granular Teacher** | 6 aşamalı (3-tur) adversarial diyalog üretir. Her tur bağımsız akıl yürütür | Gemini (temp 0.8 / 0.3) |
-| **Critic Agent** | Bağımsız LLM çağrısı ile kaliteyi 4 vektörde puanlar (Ağırlıklı Ortalama Sunucu-Tarafı) | Groq/DeepSeek (temp 0.1) |
+| **Granular Teacher** | 8-12 mesajlık adversarial diyalog üretir. Dinamik uzunluk ve taktik uygular | Gemini (temp 0.8 / 0.3) |
+| **Critic Agent** | Bağımsız LLM çağrısı ile kaliteyi 4 vektörde puanlar. Safsata kaçırmayı affetmez. | Groq/DeepSeek (temp 0.1) |
 | **Orchestrator** | Bütçe ve kaynak koruması yapar, ajanları koordine eder | — |
 
 ---
@@ -159,7 +167,8 @@ whusdata/
 - [x] Turn-by-Turn Adversarial Machine (Phase 4)
 - [x] Server-side Weighted Critic Scoring (Phase 1 Hardened)
 - [x] Budget & Token Cost Monitoring (BudgetGuardian)
-- [x] Persona & Conflict Distribution Control (Phase 2)
+- [x] Persona & Conflict Distribution Control (Phase 9)
+- [x] Anti-Hallucination & Extended Reasoning (Phase 10)
 - [ ] HuggingFace Datasets oto-push (Tier 1)
 - [ ] Prompt A/B testing framework
 
