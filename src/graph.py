@@ -179,13 +179,15 @@ class PipelineGraph:
         history = state.get("conversation_history", [])
         
         prompt = f"Evaluate this turn-by-turn conversation:\n\n{history}"
+        critic_override = self.llm.db.get_setting("critic_model_override") or "Default (Round-Robin)"
         
         try:
             result_wrapper = self.llm.generate(
                 prompt=prompt, 
                 system_message=CRITIC_SYSTEM_PROMPT, 
                 temperature=0.1, 
-                role="reasoning"
+                role="reasoning",
+                force_model=critic_override
             )
             result = result_wrapper.get("data", {})
             usage = result_wrapper.get("usage", {})

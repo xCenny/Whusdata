@@ -241,22 +241,34 @@ elif page == "⚙️ Pipeline Control":
             db.set_setting("pipeline_status", "paused")
             st.rerun()
     
+    from src.llm_client import MODEL_CONFIGS
     st.markdown("---")
-    st.subheader("🏎️ Pipeline Speed Settings")
+    st.subheader("⚙️ Behavior Settings")
     
     # Load current settings, fallback to defaults
     current_speed = int(db.get_setting("pipeline_speed") or 15)
     current_idle = int(db.get_setting("pipeline_idle") or 60)
+    current_critic = db.get_setting("critic_model_override") or "Default (Round-Robin)"
     
-    with st.form("speed_control"):
-        s1, s2 = st.columns(2)
+    # List available model names from configs
+    available_models = ["Default (Round-Robin)"] + list(MODEL_CONFIGS.keys())
+    # Ensure current is in list
+    if current_critic not in available_models:
+        available_models.append(current_critic)
+        
+    critic_idx = available_models.index(current_critic)
+    
+    with st.form("pipeline_control_form"):
+        s1, s2, s3 = st.columns(3)
         new_speed = s1.slider("Cycle Delay (Seconds between generations)", min_value=1, max_value=60, value=current_speed)
         new_idle = s2.slider("Idle Wait (Seconds if no topics found)", min_value=10, max_value=300, value=current_idle, step=10)
+        new_critic = s3.selectbox("Dedicated Critic Model", options=available_models, index=critic_idx, help="Forces the evaluation node to ONLY use this specific model, for consistency.")
         
-        if st.form_submit_button("💾 Save Speed Settings", use_container_width=True):
+        if st.form_submit_button("💾 Save Settings", use_container_width=True):
             db.set_setting("pipeline_speed", str(new_speed))
             db.set_setting("pipeline_idle", str(new_idle))
-            st.success("Speed settings saved!")
+            db.set_setting("critic_model_override", str(new_critic))
+            st.success("Pipeline settings saved!")
 
     st.markdown("---")
     st.subheader("📜 Pipeline Log (Last 50 Lines)")

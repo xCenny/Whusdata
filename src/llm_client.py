@@ -195,7 +195,8 @@ class LLMClient:
         temperature: float = 0.7,
         role: str = "fast",
         expect_json: bool = True,
-        max_tokens: int = 1500
+        max_tokens: int = 1500,
+        force_model: str = None
     ) -> Dict[str, Any]:
 
         preferred = MODEL_TIERS.get(role, [])
@@ -212,25 +213,44 @@ class LLMClient:
             if p not in preferred and k not in self.cooldowns
         ]
 
-        # Sort to ensure stable, predictable order before rotating
-        priority_slots.sort(key=lambda x: (x[0], x[1]))
-        fallback_slots.sort(key=lambda x: (x[0], x[1]))
+        provider_slots = []
+        is_forced = False
         
-        # Combine all slots
-        provider_slots = priority_slots + fallback_slots
+        if force_model and force_model != "Default (Round-Robin)":
+            forced_slots = [(p, k) for p, k in self.active_providers_pool if p == force_model and k not in self.cooldowns]
+            if forced_slots:
+                forced_slots.sort(key=lambda x: (x[0], x[1]))
+                provider_slots = forced_slots
+                is_forced = True
+                
+                if force_model not in self.rr_counters:
+                    self.rr_counters[force_model] = 0
+                idx = self.rr_counters[force_model] % len(provider_slots)
+                self.rr_counters[force_model] += 1
+                provider_slots = provider_slots[idx:] + provider_slots[:idx]
+            else:
+                logger.warning(f"Forced model '{force_model}' is unavailable/in cooldown. Falling back to global round-robin.")
 
-        if not provider_slots:
-            raise RuntimeError("No working LLM providers available (all disabled, missing, or all keys in cooldown).")
-
-        # Strict Round-Robin Rotation across ALL active models
-        if "global" not in self.rr_counters:
-            self.rr_counters["global"] = 0
+        if not is_forced:
+            # Sort to ensure stable, predictable order before rotating
+            priority_slots.sort(key=lambda x: (x[0], x[1]))
+            fallback_slots.sort(key=lambda x: (x[0], x[1]))
             
-        idx = self.rr_counters["global"] % len(provider_slots)
-        self.rr_counters["global"] += 1
-        
-        # Shift the array so the chosen model is attempted first, and the rest act as fallbacks
-        provider_slots = provider_slots[idx:] + provider_slots[:idx]
+            # Combine all slots
+            provider_slots = priority_slots + fallback_slots
+
+            if not provider_slots:
+                raise RuntimeError("No working LLM providers available (all disabled, missing, or all keys in cooldown).")
+
+            # Strict Round-Robin Rotation across ALL active models
+            if "global" not in self.rr_counters:
+                self.rr_counters["global"] = 0
+                
+            idx = self.rr_counters["global"] % len(provider_slots)
+            self.rr_counters["global"] += 1
+            
+            # Shift the array so the chosen model is attempted first, and the rest act as fallbacks
+            provider_slots = provider_slots[idx:] + provider_slots[:idx]
 
         last_error = None
 
