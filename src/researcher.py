@@ -87,15 +87,15 @@ class ResearchAgent:
         
         return selected
 
-    def fetch_wikipedia_summaries(self, num_results: int = 3) -> List[Dict[str, Any]]:
+    def fetch_wikipedia_summaries(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Fetches random Wikipedia summaries as seed material, returning dicts with keyword IDs."""
         summaries = []
         try:
             wikipedia.set_lang("en")
-            items = self._get_search_items(num_results=num_results)
             
             for item in items:
                 word = item["word"]
+                logger.info(f"Querying Wikipedia API for: {word}")
                 try:
                     search_results = wikipedia.search(word, results=10)
                     if not search_results:
@@ -122,7 +122,8 @@ class ResearchAgent:
                     summaries.append({
                         "text": text,
                         "keyword_id": item["id"],
-                        "word": word
+                        "word": word,
+                        "source": "wikipedia"
                     })
                 except wikipedia.exceptions.DisambiguationError:
                     logger.debug(f"Disambiguation hit for {word}, skipping.")
@@ -137,15 +138,94 @@ class ResearchAgent:
             
         return summaries
 
+    def fetch_arxiv_summaries(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Fetches highly technical academic abstracts from the public ArXiv API."""
+        import urllib.request
+        import xml.etree.ElementTree as ET
+        import urllib.parse
+        
+        summaries = []
+        for item in items:
+            word = item["word"]
+            logger.info(f"Querying ArXiv API for: {word}")
+            # Format query for ArXiv API
+            query = urllib.parse.quote(word)
+            url = f"http://export.arxiv.org/api/query?search_query=all:{query}&start=0&max_results=5"
+            
+            try:
+                # Add a timeout to prevent hanging
+                with urllib.request.urlopen(url, timeout=10) as response:
+                    xml_data = response.read()
+                    
+                root = ET.fromstring(xml_data)
+                
+                # ArXiv XML namespace
+                ns = {'atom': 'http://www.w3.org/2005/Atom'}
+                entries = root.findall('atom:entry', ns)
+                
+                if not entries:
+                    logger.debug(f"ArXiv returned no results for '{word}'.")
+                    continue
+                    
+                # Pick a random paper from the top 5 results
+                entry = random.choice(entries)
+                title = entry.find('atom:title', ns).text.strip()
+                # Clean up newlines in abstract
+                abstract = " ".join(entry.find('atom:summary', ns).text.strip().split())
+                
+                text = f"ArXiv Paper: {title}. Abstract: {abstract}"
+                summaries.append({
+                    "text": text,
+                    "keyword_id": item["id"],
+                    "word": word,
+                    "source": "arxiv"
+                })
+            except Exception as e:
+                logger.error(f"Error fetching from ArXiv for '{word}': {e}")
+                
+        logger.info(f"Fetched {len(summaries)} summaries from ArXiv.")
+        return summaries
+
     def generate_and_store_topics(self) -> int:
         """
         Runs the research cycle: 
         1. Check for UI target keywords (prioritize) or fallback to Wikipedia
-        2. Prompt LLM for JSON Topic
-        3. Check Diversity (DB + Chroma)
-        4. Store in DB
+        2. Route keywords to Wikipedia or ArXiv
+        3. Prompt LLM for JSON Topic
+        4. Check Diversity (DB + Chroma)
+        5. Store in DB
         """
-        abstracts_data = self.fetch_wikipedia_summaries(num_results=3)
+        items = self._get_search_items(num_results=3)
+        
+        # Route items to different sources (50/50 split)
+        wiki_items = []
+        arxiv_items = []
+        
+        for item in items:
+            if random.random() < 0.50:
+                arxiv_items.append(item)
+            else:
+                wiki_items.append(item)
+                
+        abstracts_data = []
+        
+        # Fetch ArXiv
+        if arxiv_items:
+            arxiv_results = self.fetch_arxiv_summaries(arxiv_items)
+            abstracts_data.extend(arxiv_results)
+            
+            # Graceful Fallback: If ArXiv found nothing for a keyword, send it to Wiki
+            successful_arxiv_words = {res["word"] for res in arxiv_results}
+            for item in arxiv_items:
+                if item["word"] not in successful_arxiv_words:
+                    logger.info(f"Fallback: Sending '{item['word']}' to Wikipedia since ArXiv found nothing.")
+                    wiki_items.append(item)
+                    
+        # Fetch Wiki
+        if wiki_items:
+            wiki_results = self.fetch_wikipedia_summaries(wiki_items)
+            abstracts_data.extend(wiki_results)
+            
         inserted_count = 0
         
         for data in abstracts_data:
