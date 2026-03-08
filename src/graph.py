@@ -157,7 +157,7 @@ class PipelineGraph:
             }
         except Exception as e:
             logger.error(f"User turn generation failed: {e}")
-            return {"rejected": True, "status": "failed"}
+            return {"rejected": True, "api_failure": True, "status": "failed"}
 
     def node_assistant_turn(self, state: GraphState) -> Dict[str, Any]:
         turn = state.get("current_turn", 1)
@@ -187,7 +187,7 @@ class PipelineGraph:
             }
         except Exception as e:
             logger.error(f"Assistant turn generation failed: {e}")
-            return {"rejected": True}
+            return {"rejected": True, "api_failure": True}
 
     def edge_after_assistant(self, state: GraphState) -> str:
         if state.get("rejected"):
@@ -217,7 +217,7 @@ class PipelineGraph:
             }
         except Exception as e:
             logger.error(f"Metadata generation failed: {e}")
-            return {"metadata": state.get("metadata", {})}
+            return {"metadata": state.get("metadata", {}), "rejected": True, "api_failure": True}
 
     def node_evaluate(self, state: GraphState) -> Dict[str, Any]:
         """Critic Agent: cross-model evaluation with server-side weighted average."""
@@ -271,7 +271,7 @@ class PipelineGraph:
             }
         except Exception as e:
             logger.error(f"Critic Agent failed: {e}")
-            return {"status": "needs_reflection", "rejected": True}
+            return {"status": "needs_reflection", "rejected": True, "api_failure": True}
 
     def edge_after_evaluate(self, state: GraphState) -> str:
         if state.get("status") == "success" or state.get("rejected"):

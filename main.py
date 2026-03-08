@@ -28,7 +28,7 @@ def classify_tier(confidence: float) -> int:
         return 1  # Gold
     elif confidence >= 0.70:
         return 2  # Silver
-    elif confidence >= 0.65:
+    elif confidence >= 0.60:
         return 3  # Bronze
     return 0  # Discard
 
@@ -183,6 +183,13 @@ def orchestrator_loop():
             failure_type = critic_data.get("failure_type", "UNKNOWN")
             feedback = critic_data.get("feedback", "")
             iterations = final_state.get("iterations", 0)
+
+            # Guard 0: API Failure Rescue
+            if final_state.get("api_failure", False):
+                logger.warning(f"⚠️ Topic {topic_id} hit an API/Rate Limit failure. Reverting to PENDING to save the topic.")
+                db.mark_topic_status(topic_id, "PENDING")
+                time.sleep(15)
+                continue
 
             # Guard 1: Rejected or non-success status
             if final_state.get("rejected", False) or final_state.get("status") != "success":
