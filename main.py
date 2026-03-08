@@ -151,6 +151,7 @@ def orchestrator_loop():
                 "critic_data": {},
                 "iterations": 0,
                 "rejected": False,
+                "api_failure": False,
                 "current_turn": 1,
                 "usage_log": [],
                 "status": "pending_evaluation"

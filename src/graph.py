@@ -71,6 +71,7 @@ class GraphState(TypedDict):
     status: str
     iterations: int
     rejected: bool
+    api_failure: bool
     current_turn: int  # 1 to 3
     usage_log: List[Dict[str, Any]] # To track cost across all nodes
 
