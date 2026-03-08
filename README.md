@@ -33,7 +33,7 @@ Açık kaynaklı dil modellerini eğitmek (SFT / RLHF fine-tuning) amacıyla **7
 
 ### 🧠 Gelişmiş Özellikler (Phase 4 & 5)
 
-- **Gelişmiş SFT Veriseti Disiplini**: Açık kaynak (Llama 3, vs) fine-tuning için üretilen JSONL verisi artık sadece sohbet mesajlarını değil; `topic`, `difficulty`, `domain`, `persona`, `winner`, ve `logic_score` gibi zengin meta etiketlerini de içerir (OpenAI Debate Dataset stili).
+- **Gelişmiş SFT Veriseti Disiplini**: Açık kaynak (Llama 3, vs) fine-tuning için üretilen JSONL verisi artık sadece sohbet mesajlarını değil; `topic`, `difficulty`, `domain`, `persona`, `winner`, `logic_score`, `factual_score` ve `critic_analytics` (Chain-of-Thought tespitleri) gibi devasa meta veri bloklarını da içerir.
 - **Dinamik Model ve Fiyatlandırma Yönetimi**: Eski sabit model konfigürasyonları yerine, tamamen veritabanı destekli (SQLite) dinamik `🤖 Models & Prices` sayfası eklenmiştir. Bu sayfadan istediğiniz LLM uç noktasını ekleyebilir, 1 Milyon Token input/output maliyetlerini kuruşu kuruşuna girebilirsiniz. Böylece sistem, veri üretirken **gerçek** dolar maliyetini hesaplar.
 - **Ücretsiz Katman (Free Tier) Gecikme Koruması**: Ücretsiz API'ler kullananlar için (örn. Groq veya Gemini Free), modeller arası `Delay (s)` yani yapay bekleme süresi eklenebilir. Böylece rate limit aşımlarına karşı üretim güvene alınır.
 - **API Kurtarma (Discard Prevention)**: Olası bir Rate Limit (429) veya API çökmesi durumunda sistem, tamamlanmış uzun diyalogları çöpe atmak yerine tekrar denemek üzere `PENDING` konumuna alarak API maliyet israfını engeller.
@@ -41,6 +41,33 @@ Açık kaynaklı dil modellerini eğitmek (SFT / RLHF fine-tuning) amacıyla **7
 - **Sıralı Ajan Diyaloğu (Granular Loop)**: Teacher artık tek seferde değil, her turda ayrı model çağrıları yaparak gerçek bir çatışma dinamiği oluşturur.
 - **Dinamik Hız ve Başarım Kontrolü**: Üretim hızı (pipeline speed) ve günlük token limitleri (örn: Gemini için 2M limit) UI üzerinden anlık olarak ayarlanabilir.
 - **Kalibrasyon vs Üretim Modu**: İlk 500 üretim "Calibration" olarak işaretlenerek kalite kontrolü için optimize edilir.
+
+### 📤 Örnek JSONL Çıktısı (Phase 12 Derin Analitik)
+Kendi veritabanınızdan üretip indireceğiniz tek boyutlu `HuggingFace`-uyumlu data bloğu şu şekildedir:
+```json
+{
+  "topic": "The Fermi Paradox and the Simulation Hypothesis",
+  "domain": "Astrophysics",
+  "difficulty": "Advanced",
+  "persona": "Adversarial Skeptic",
+  "scenario_conflict": "Logical Fallacy Trap",
+  "winner": "Assistant",
+  "logic_score": 0.95,
+  "factual_score": 1.0,
+  "critic_confidence": 0.887,
+  "memory_score": 0.91,
+  "model_used": "gemini-2.5-pro",
+  "messages": [
+    {"role": "user", "content": "If we were in a simulation, the processing power required for the universe would cause noticeable lag, so it's a ridiculous theory."},
+    {"role": "assistant", "content": "Assuming a simulation requires rendering the entire universe simultaneously is an argument from incredulity..."}
+  ],
+  "critic_analytics": {
+    "reasoning": "The assistant perfectly detected the user's Argument from Incredulity and efficiently hedged the citation without hallucinating an exact source.",
+    "detected_fallacies": ["Argument from Incredulity", "False Dilemma"],
+    "assistant_counters": ["Logical Breakdown", "Citation Hedging"]
+  }
+}
+```
 
 ### 🌐 Derin Bilgi & Acımasız Kalite Kontrolü (Phase 6)
 - **Dinamik Bilgi Kaynakları (Knowledge Sources)**: Research Ajanı artık sadece parametrik yapılandırılmış Wikipedia'dan değil; UI üzerinden eklenebilen rastgele Reddit Subreddit'leri (ör: r/MachineLearning), Hacker News sıcak tartışmaları ve Global RSS haber akışlarından beslenerek tamamen öngörülemez, taze konu başlıkları bulur.
@@ -159,6 +186,8 @@ whusdata/
 | `domain` | TEXT | Konu alanı (Physics, Psychology...) |
 | `critic_status` | TEXT | PASS veya FAIL |
 | `critic_confidence` | REAL | 0.0 – 1.0 arası ağırlıklı ortalama |
+| `factual_score` | REAL | Bilgi doğruluğu puanı (0.0 - 1.0) |
+| `critic_analytics` | TEXT (JSON) | Hakemin reasoning, fallacies ve counters çıktıları |
 | `failure_type` | TEXT | NONE, LOGICAL_ERROR, HALLUCINATION vb. |
 
 ### `target_keywords`
@@ -178,6 +207,8 @@ whusdata/
 - [x] Budget & Token Cost Monitoring (BudgetGuardian)
 - [x] Persona & Conflict Distribution Control (Phase 9)
 - [x] Anti-Hallucination & Extended Reasoning (Phase 10)
+- [x] Organik Hafıza / Contextual Memory Recall (Phase 11)
+- [x] Deep RLHF Analytics & Chain of Thought (Phase 12)
 - [ ] HuggingFace Datasets oto-push (Tier 1)
 - [ ] Prompt A/B testing framework
 
