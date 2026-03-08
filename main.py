@@ -193,37 +193,44 @@ def orchestrator_loop():
                 time.sleep(15)
                 continue
 
+            def handle_failure(f_type, f_feedback):
+                logger.warning(f"❌ Topic {topic_id} REJECTED. Failure: {f_type}, Confidence: {confidence:.2f}")
+                db.log_failure(topic_str, f_type, confidence, f_feedback, iterations)
+                db.mark_topic_status(topic_id, "FAILED")
+                if conversation:
+                    temp_critic = critic_data.copy()
+                    temp_critic["status"] = "FAIL"
+                    temp_critic["failure_type"] = f_type
+                    temp_critic["feedback"] = f_feedback
+                    db.insert_generation(
+                        topic=topic_str,
+                        conversation_history=conversation,
+                        metadata=metadata,
+                        critic_data=temp_critic,
+                        tier=0,
+                        mode=gen_mode
+                    )
+                time.sleep(15)
+
             # Guard 1: Rejected or non-success status
             if final_state.get("rejected", False) or final_state.get("status") != "success":
-                logger.warning(f"❌ Topic {topic_id} REJECTED. Failure: {failure_type}, Confidence: {confidence:.2f}")
-                db.log_failure(topic_str, failure_type, confidence, feedback, iterations)
-                db.mark_topic_status(topic_id, "FAILED")
-                time.sleep(15)
+                handle_failure(failure_type, feedback)
                 continue
             
             # Guard 2: Turn order validation
             if not validate_turn_order(conversation):
-                logger.warning(f"❌ Topic {topic_id} INVALID turn order. Discarding.")
-                db.log_failure(topic_str, "INVALID_TURN_ORDER", confidence, "Turn alternation violated", iterations)
-                db.mark_topic_status(topic_id, "FAILED")
-                time.sleep(15)
+                handle_failure("INVALID_TURN_ORDER", "Turn alternation violated")
                 continue
             
             # Guard 3: Metadata completeness
             if not validate_metadata(metadata):
-                logger.warning(f"⚠️ Topic {topic_id} has incomplete metadata. Discarding.")
-                db.log_failure(topic_str, "INCOMPLETE_METADATA", confidence, f"Missing fields in: {metadata}", iterations)
-                db.mark_topic_status(topic_id, "FAILED")
-                time.sleep(15)
+                handle_failure("INCOMPLETE_METADATA", f"Missing fields in: {metadata}")
                 continue
 
             # Guard 4: Tier classification
             tier = classify_tier(confidence)
             if tier == 0:
-                logger.warning(f"❌ Topic {topic_id} below Tier 3 threshold (conf: {confidence:.2f}). Discarding.")
-                db.log_failure(topic_str, failure_type, confidence, feedback, iterations)
-                db.mark_topic_status(topic_id, "FAILED")
-                time.sleep(15)
+                handle_failure(failure_type, feedback)
                 continue
             
             # ═══════════════════════════════════════════
