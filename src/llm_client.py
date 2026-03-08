@@ -356,12 +356,21 @@ class LLMClient:
             "content": prompt
         })
 
-        response = client.chat.completions.create(
-            model=config["model_name"],
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens
-        )
+        kwargs = {
+            "model": config["model_name"],
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens
+        }
+
+        # Force strict JSON format for OpenAI / Groq
+        if expect_json and ("openai" in provider or "groq" in provider or "deepseek" in provider):
+            kwargs["response_format"] = {"type": "json_object"}
+
+        response = client.chat.completions.create(**kwargs)
+
+        # Intrinsic delay to prevent burst rate limit
+        time.sleep(1)
 
         raw = response.choices[0].message.content
 

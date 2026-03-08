@@ -270,7 +270,7 @@ elif page == "⚙️ Pipeline Control":
     
     with st.form("pipeline_control_form"):
         s1, s2, s3 = st.columns(3)
-        new_speed = s1.slider("Cycle Delay (Seconds between generations)", min_value=1, max_value=60, value=current_speed)
+        new_speed = s1.slider("Cycle Delay (Seconds between generations)", min_value=30, max_value=120, value=max(30, current_speed))
         new_idle = s2.slider("Idle Wait (Seconds if no topics found)", min_value=10, max_value=300, value=current_idle, step=10)
         new_critic = s3.selectbox("Dedicated Critic Model", options=available_models, index=critic_idx, help="Forces the evaluation node to ONLY use this specific model, for consistency.")
         
