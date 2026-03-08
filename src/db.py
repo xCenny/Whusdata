@@ -136,11 +136,73 @@ class DatabaseManager:
                         cooldown_until DATETIME
                     );
                 """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS llm_providers (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT UNIQUE,
+                        provider_base TEXT,
+                        api_key_env_prefix TEXT,
+                        base_url TEXT,
+                        model_name TEXT,
+                        role_tier TEXT,
+                        is_free_tier BOOLEAN DEFAULT 0,
+                        free_tier_delay INTEGER DEFAULT 0,
+                        cost_input_1m REAL DEFAULT 0.0,
+                        cost_output_1m REAL DEFAULT 0.0,
+                        is_active BOOLEAN DEFAULT 1
+                    );
+                """)
                 conn.commit()
+                
+                # Check if llm_providers is empty
+                c = cursor.execute("SELECT COUNT(*) FROM llm_providers").fetchone()[0]
+                if c == 0:
+                    defaults = [
+                        ("gemini-flash", "gemini", "GEMINI_API_KEY", "https://generativelanguage.googleapis.com/v1beta/openai/", "gemini-2.0-flash", "fast", 1, 10, 0.15, 0.60, 1),
+                        ("gemini-pro", "gemini", "GEMINI_API_KEY", "https://generativelanguage.googleapis.com/v1beta/openai/", "gemini-2.5-pro", "reasoning", 1, 10, 2.50, 10.00, 1),
+                        ("groq-fast", "groq", "GROQ_API_KEY", "https://api.groq.com/openai/v1", "llama-3.1-8b-instant", "fast", 1, 15, 0.05, 0.08, 1),
+                        ("groq-large", "groq", "GROQ_API_KEY", "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile", "reasoning", 1, 15, 0.59, 0.79, 1),
+                        ("openai-mini", "openai", "OPENAI_API_KEY", "https://api.openai.com/v1", "gpt-4o-mini", "fast", 0, 0, 0.15, 0.60, 1),
+                        ("openai-large", "openai", "OPENAI_API_KEY", "https://api.openai.com/v1", "gpt-4o", "reasoning", 0, 0, 2.50, 10.00, 1),
+                        ("deepseek", "deepseek", "DEEPSEEK_API_KEY", "https://api.deepseek.com/v1", "deepseek-chat", "reasoning", 0, 0, 0.14, 0.28, 1)
+                    ]
+                    for d in defaults:
+                        cursor.execute("""
+                            INSERT INTO llm_providers (name, provider_base, api_key_env_prefix, base_url, model_name, role_tier, is_free_tier, free_tier_delay, cost_input_1m, cost_output_1m, is_active)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, d)
+                    conn.commit()
+
                 logger.info("Database initialized successfully with WAL mode.")
         except Exception as e:
             logger.error(f"Error initializing database: {e}")
             raise
+
+    # ── Dynamic Models Helpers ──
+    def get_all_providers(self) -> List[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            rows = conn.execute("SELECT * FROM llm_providers ORDER BY provider_base, role_tier").fetchall()
+            return [dict(r) for r in rows]
+
+    def update_provider(self, p_id: int, updates: Dict[str, Any]):
+        fields = ", ".join([f"{k} = ?" for k in updates.keys()])
+        values = list(updates.values()) + [p_id]
+        with self.get_connection() as conn:
+            conn.execute(f"UPDATE llm_providers SET {fields} WHERE id = ?", values)
+            conn.commit()
+
+    def insert_provider(self, data: Dict[str, Any]):
+        fields = ", ".join(data.keys())
+        placeholders = ", ".join(["?" for _ in data])
+        values = list(data.values())
+        with self.get_connection() as conn:
+            conn.execute(f"INSERT INTO llm_providers ({fields}) VALUES ({placeholders})", values)
+            conn.commit()
+
+    def delete_provider(self, p_id: int):
+        with self.get_connection() as conn:
+            conn.execute("DELETE FROM llm_providers WHERE id = ?", (p_id,))
+            conn.commit()
 
     # ── Settings Helpers ──
     def get_setting(self, key: str) -> Optional[str]:
@@ -518,19 +580,29 @@ class DatabaseManager:
                 "rolling_7d_avg_memory": round(r7_avg_mem, 3)
             }
 
-    def log_cost(self, model: str, prompt_tokens: int, completion_tokens: int):
-        """Logs the token usage and estimated cost for an LLM call."""
-        # Estimated costs per 1M tokens (very simplified, for tracking purposes)
-        # Gemini 1.5 Pro: ~$3.5 (avg) | Groq: ~$0.5 (avg)
-        cost_per_token = 3.5 / 1_000_000 if "gemini" in model.lower() else 0.5 / 1_000_000
-        total_tokens = prompt_tokens + completion_tokens
-        cost_usd = total_tokens * cost_per_token
-        
+    def log_cost(self, model_name: str, prompt_tokens: int, completion_tokens: int):
+        """Logs the token usage and calculated cost for an LLM call using db pricing."""
         try:
             with self.get_connection() as conn:
+                # Fetch explicit pricing from llm_providers
+                row = conn.execute(
+                    "SELECT cost_input_1m, cost_output_1m FROM llm_providers WHERE model_name = ? COLLATE NOCASE LIMIT 1",
+                    (model_name,)
+                ).fetchone()
+                
+                if row:
+                    c_in = row["cost_input_1m"] / 1_000_000
+                    c_out = row["cost_output_1m"] / 1_000_000
+                else:
+                    # Fallback approximation
+                    c_in = 0.5 / 1_000_000
+                    c_out = 0.5 / 1_000_000
+
+                cost_usd = (prompt_tokens * c_in) + (completion_tokens * c_out)
+                
                 conn.execute(
                     "INSERT INTO cost_log (model, prompt_tokens, completion_tokens, cost_usd) VALUES (?, ?, ?, ?)",
-                    (model, prompt_tokens, completion_tokens, cost_usd)
+                    (model_name, prompt_tokens, completion_tokens, cost_usd)
                 )
                 conn.commit()
         except Exception as e:
@@ -549,3 +621,24 @@ class DatabaseManager:
         with self.get_connection() as conn:
             row = conn.execute("SELECT SUM(cost_usd) as total FROM cost_log").fetchone()
             return row["total"] if row and row["total"] else 0.0
+
+    def get_ai_insights(self) -> Dict[str, Any]:
+        """Calculates AI-driven insights based on generation history and costs."""
+        with self.get_connection() as conn:
+            total_cost = self.get_total_cost()
+            total_gens = conn.execute("SELECT COUNT(*) as c FROM generations").fetchone()["c"]
+            
+            avg_cost = total_cost / total_gens if total_gens > 0 else 0.0
+            
+            # Estimate how many conversations you get for 1 million combined tokens at current mix
+            total_tokens = conn.execute("SELECT SUM(prompt_tokens + completion_tokens) as t FROM cost_log").fetchone()["t"] or 0
+            tokens_per_gen = total_tokens / total_gens if total_gens > 0 else 0
+            convos_per_1m = int(1_000_000 / tokens_per_gen) if tokens_per_gen > 0 else 0
+            
+            est_1000 = avg_cost * 1000
+            
+            return {
+                "avg_cost_per_gen": avg_cost,
+                "convos_per_1m_tokens": convos_per_1m,
+                "est_cost_1000": est_1000
+            }

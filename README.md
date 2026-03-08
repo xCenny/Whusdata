@@ -34,11 +34,12 @@ Açık kaynaklı dil modellerini eğitmek (SFT / RLHF fine-tuning) amacıyla **7
 ### 🧠 Gelişmiş Özellikler (Phase 4 & 5)
 
 - **Gelişmiş SFT Veriseti Disiplini**: Açık kaynak (Llama 3, vs) fine-tuning için üretilen JSONL verisi artık sadece sohbet mesajlarını değil; `topic`, `difficulty`, `domain`, `persona`, `winner`, ve `logic_score` gibi zengin meta etiketlerini de içerir (OpenAI Debate Dataset stili).
-- **Ayrıştırılmış API-Key Load Balancing (Yük Dağıtımı)**: `🔑 API Keys` arayüzünden tek bir sağlayıcı (Örn: Gemini) için alt alta limitsiz sayıda API anahtarı eklenebilir. Sistem Rate Limit hatası alırsa tüm sağlayıcıyı DEĞİL, SADECE o spesifik anahtarı `2 Saatlik Cooldown (bekleme)` moduna alır. Başka geçerli anahtarlar varsa onlardan veya diğer modellerden kesintisiz devam eder.
-- **Sıralı Ajan Diyaloğu (Granular Loop)**: Teacher artık tek seferde değil, her turda (User -> Asistan) ayrı model çağrıları yaparak gerçek bir çatışma dinamiği oluşturur.
-- **Dinamik Hız ve Başarım Kontrolü**: Üretim hızı (pipeline speed) ve günlük token limitleri (örn: Gemini için 2M limit) UI üzerinden anlık olarak ayarlanabilir. Limit aşılırsa o sağlayıcı için üretim günlüğüne kadar durdurulur.
+- **Dinamik Model ve Fiyatlandırma Yönetimi**: Eski sabit model konfigürasyonları yerine, tamamen veritabanı destekli (SQLite) dinamik `🤖 Models & Prices` sayfası eklenmiştir. Bu sayfadan istediğiniz LLM uç noktasını ekleyebilir, 1 Milyon Token input/output maliyetlerini kuruşu kuruşuna girebilirsiniz. Böylece sistem, veri üretirken **gerçek** dolar maliyetini hesaplar.
+- **Ücretsiz Katman (Free Tier) Gecikme Koruması**: Ücretsiz API'ler kullananlar için (örn. Groq veya Gemini Free), modeller arası `Delay (s)` yani yapay bekleme süresi eklenebilir. Böylece rate limit aşımlarına karşı üretim güvene alınır.
+- **Ayrıştırılmış API-Key Load Balancing (Yük Dağıtımı)**: `🔑 API Keys` arayüzü artık veritabanındaki aktif modellere göre dinamik olarak şekillenir. Tek bir sağlayıcı için limitsiz sayıda API anahtarı eklenebilir. Sistem Rate Limit hatası alırsa SADECE o spesifik anahtarı `2 Saatlik Cooldown (bekleme)` moduna alır.
+- **Sıralı Ajan Diyaloğu (Granular Loop)**: Teacher artık tek seferde değil, her turda ayrı model çağrıları yaparak gerçek bir çatışma dinamiği oluşturur.
+- **Dinamik Hız ve Başarım Kontrolü**: Üretim hızı (pipeline speed) ve günlük token limitleri (örn: Gemini için 2M limit) UI üzerinden anlık olarak ayarlanabilir.
 - **Kalibrasyon vs Üretim Modu**: İlk 500 üretim "Calibration" olarak işaretlenerek kalite kontrolü için optimize edilir.
-- **Model Gözlemlenebilirliği (Observability)**: Her üretimin `model_used` (örn: `llama-3.3-70b-versatile`) etiketi doğrudan UI'dan takip edilebilir.
 
 ### 🌐 Derin Bilgi & Acımasız Kalite Kontrolü (Phase 6)
 - **Derin İnternet Bilgisi (Internet Knowledge)**: Research Ajanı artık sıradan Wikipedia sayfaları yerine; Kuantum Dolanıklığı, Epigenetik Miras, Fermi Paradoksu gibi akademik ve derin paradoksları araştırarak ana konuları belirler.
@@ -75,12 +76,14 @@ Tarayıcıdan `http://SUNUCU_IP:8501` adresine girerek erişilir.
 
 | Sayfa | Özellik |
 |---|---|
-| **📊 Dashboard** | Toplam üretim, **💰 Günlük/Toplam Maliyet**, PASS/FAIL oranı, Tier kartları |
+| **📊 Dashboard** | AI-Driven Öngörüler (Maliyet Tahmini), Toplam Üretim, **💰 Maliyet**, Tier kartları |
 | **📈 Drift Monitor** | 7 günlük rolling PASS oranı, güven trendi ve çatışma türü histogramı |
-| **💬 Conversations** | **🧪 CAL / 🚀 PROD** etiketli sohbetleri balonlar halinde oku |
-| **🎯 Weekly Planner** | Research Agent'a odak noktaları ata |
-| **⚙️ Pipeline Control** | Start/Pause + Canlı Log Viewer |
-| **📥 Export Dataset** | **Tier 1, 2, 3** veya Domain filtreleri ile `.jsonl` indir |
+| **💬 Conversations** | **🧪 CAL / 🚀 PROD** etiketli sohbetleri okuma ve Critic kararlarını inceleme |
+| **🎯 Weekly Planner** | Research Agent'a hedef anahtar kelimeler ve öncelikler atama |
+| **⚙️ Pipeline Control** | Üretimi Başlat/Durdur, Bekleme sürelerini değiştir ve Canlı Log izleme |
+| **🤖 Models & Prices** | Veritabanı destekli Dinamik LLM sağlayıcı, Fiyat ve Free Tier Gecikme ayarları |
+| **🔑 API Keys** | Tüm sağlayıcıların API anahtarlarını, Cooldown sağlık durumlarını ve günlük limitleri yönetme |
+| **📥 Export Dataset** | **Tier 1, 2, 3** veya Domain filtreleri ile SFT formatlı `.jsonl` indirme |
 
 ---
 

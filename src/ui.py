@@ -47,7 +47,7 @@ st.sidebar.image("https://img.icons8.com/nolan/64/artificial-intelligence.png", 
 st.sidebar.title("🧠 Whusdata Pipeline")
 page = st.sidebar.radio(
     "Navigate",
-    ["📊 Dashboard", "📈 Drift Monitor", "💬 Conversations", "🎯 Weekly Planner", "⚙️ Pipeline Control", "🔑 API Keys", "📥 Export Dataset"],
+    ["📊 Dashboard", "📈 Drift Monitor", "💬 Conversations", "🎯 Weekly Planner", "⚙️ Pipeline Control", "🤖 Models & Prices", "🔑 API Keys", "📥 Export Dataset"],
     label_visibility="collapsed"
 )
 pipeline_status = db.get_setting("pipeline_status") or "running"
@@ -84,6 +84,15 @@ if page == "📊 Dashboard":
         st.caption("Daily Budget Usage ($10.00 Limit)")
         st.progress(min(daily_cost / 10.0, 1.0))
 
+    st.markdown("---")
+    
+    ai = db.get_ai_insights()
+    st.markdown("### 🤖 Minimum Viable AI Insights")
+    ai1, ai2, ai3 = st.columns(3)
+    ai1.metric("Avg Cost / Convo", f"${ai.get('avg_cost_per_gen', 0):.4f}")
+    ai2.metric("Convos per 1M Tokens", f"{ai.get('convos_per_1m_tokens', 0):,}")
+    ai3.metric("Est. Cost for 1k More", f"${ai.get('est_cost_1000', 0):.2f}")
+    
     st.markdown("---")
     
     # Row 2: Tier Breakdown + Quality
@@ -251,17 +260,9 @@ elif page == "⚙️ Pipeline Control":
             db.set_setting("pipeline_status", "paused")
             st.rerun()
     
-    from src.llm_client import MODEL_CONFIGS
-    st.markdown("---")
-    st.subheader("⚙️ Behavior Settings")
-    
-    # Load current settings, fallback to defaults
-    current_speed = int(db.get_setting("pipeline_speed") or 15)
-    current_idle = int(db.get_setting("pipeline_idle") or 60)
-    current_critic = db.get_setting("critic_model_override") or "Default (Round-Robin)"
-    
     # List available model names from configs
-    available_models = ["Default (Round-Robin)"] + list(MODEL_CONFIGS.keys())
+    all_providers = db.get_all_providers()
+    available_models = ["Default (Round-Robin)"] + [p["name"] for p in all_providers]
     # Ensure current is in list
     if current_critic not in available_models:
         available_models.append(current_critic)
@@ -290,6 +291,67 @@ elif page == "⚙️ Pipeline Control":
         st.info("No log file yet.")
 
 # ═══════════════════════════════════════════════
+# 🤖 MODELS & PRICES
+# ═══════════════════════════════════════════════
+elif page == "🤖 Models & Prices":
+    st.title("🤖 Models & Prices")
+    st.caption("Manage LLM endpoints, free tier delays, and input exact token prices for cost calculation.")
+    
+    providers = db.get_all_providers()
+    df = pd.DataFrame(providers)
+    
+    if not df.empty:
+        # Reorder columns for friendliness
+        cols = ["id", "is_active", "name", "provider_base", "api_key_env_prefix", "base_url", "model_name", "role_tier", "is_free_tier", "free_tier_delay", "cost_input_1m", "cost_output_1m"]
+        df = df[cols]
+        
+        edited_df = st.data_editor(
+            df,
+            num_rows="dynamic",
+            use_container_width=True,
+            column_config={
+                "id": None, # hide ID
+                "is_active": st.column_config.CheckboxColumn("Active?", help="Enable or disable entire model"),
+                "is_free_tier": st.column_config.CheckboxColumn("Free Tier?", help="Applies delay if checked"),
+                "free_tier_delay": st.column_config.NumberColumn("Delay (s)", min_value=0),
+                "cost_input_1m": st.column_config.NumberColumn("In Cost / 1M ($)", format="$%.3f"),
+                "cost_output_1m": st.column_config.NumberColumn("Out Cost / 1M ($)", format="$%.3f")
+            }
+        )
+        
+        if st.button("💾 Save Changes", type="primary"):
+            st.toast("Saving model configurations...")
+            all_ids = set([p["id"] for p in providers])
+            current_ids = set()
+            
+            for _, row in edited_df.iterrows():
+                row_dict = row.to_dict()
+                r_id = row_dict.pop("id", None)
+                
+                # Fill NaNs
+                for k, v in row_dict.items():
+                    if pd.isna(v): row_dict[k] = None
+                
+                row_dict["is_free_tier"] = 1 if row_dict.get("is_free_tier") else 0
+                row_dict["is_active"] = 1 if row_dict.get("is_active") else 0
+                
+                if pd.isna(r_id):
+                    # INSERT
+                    db.insert_provider(row_dict)
+                else:
+                    r_id = int(r_id)
+                    current_ids.add(r_id)
+                    # UPDATE
+                    db.update_provider(r_id, row_dict)
+                    
+            # DELETE any missing
+            for d in (all_ids - current_ids):
+                db.delete_provider(d)
+                
+            st.success("✅ Models & Prices successfully saved! Pipeline will load dynamically.")
+            st.rerun()
+
+# ═══════════════════════════════════════════════
 # 🔑 API KEYS
 # ═══════════════════════════════════════════════
 elif page == "🔑 API Keys":
@@ -309,7 +371,7 @@ elif page == "🔑 API Keys":
             pass
         return env_dict
 
-    def save_env_vars(env_dict):
+    def save_env_vars(env_dict, allow_prefixes):
         lines = []
         try:
             with open(".env", "r") as f:
@@ -318,17 +380,15 @@ elif page == "🔑 API Keys":
             pass
             
         new_lines = []
-        handled_keys = set()
         
         # Keep old stuff if it's not being overwritten AND not a targeted prefix we are clearing
-        prefixes = ["GEMINI_API_KEY", "GROQ_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY"]
         for line in lines:
             stripped = line.strip()
             if stripped and not stripped.startswith("#") and "=" in stripped:
                 k = stripped.split("=", 1)[0]
                 
                 # If it's one of our prefixes, drop it because we rebuild it from scratch below
-                if any(k.startswith(p) for p in prefixes):
+                if any(k.startswith(p) for p in allow_prefixes):
                     continue
                 else:
                     new_lines.append(line)
@@ -342,20 +402,25 @@ elif page == "🔑 API Keys":
                 
         with open(".env", "w") as f:
             f.writelines(new_lines)
-            
-    # Load current env vars and group by prefix
+
+    # Dynamic lookups
+    all_p = db.get_all_providers()
+    unique_providers = {}
+    for p in all_p:
+        pb = p["provider_base"]
+        if pb not in unique_providers:
+            unique_providers[pb] = {
+                "ui_name": pb.capitalize(),
+                "base_name": pb,
+                "prefix": p["api_key_env_prefix"]
+            }
+
     current_env = load_env_vars()
-    gemini_keys = "\n".join([v for k, v in current_env.items() if k.startswith("GEMINI_API_KEY")])
-    groq_keys = "\n".join([v for k, v in current_env.items() if k.startswith("GROQ_API_KEY")])
-    openai_keys = "\n".join([v for k, v in current_env.items() if k.startswith("OPENAI_API_KEY")])
-    deepseek_keys = "\n".join([v for k, v in current_env.items() if k.startswith("DEEPSEEK_API_KEY")])
     
-    providers = [
-        ("Gemini", "gemini", gemini_keys),
-        ("Groq", "groq", groq_keys),
-        ("OpenAI", "openai", openai_keys),
-        ("DeepSeek", "deepseek", deepseek_keys)
-    ]
+    providers = []
+    for pb, info in unique_providers.items():
+        keys_str = "\n".join([v for k, v in current_env.items() if k.startswith(info["prefix"])])
+        providers.append((info["ui_name"], info["base_name"], keys_str, info["prefix"]))
     
     with st.form("api_keys_form"):
         st.info("💡 You can enter multiple API keys for a provider by placing each key on a new line.")
@@ -381,7 +446,7 @@ elif page == "🔑 API Keys":
         updates = {}
         db_updates = {}
         
-        for ui_name, base_name, keys_str in providers:
+        for ui_name, base_name, keys_str, prefix in providers:
             st.markdown(f"### {ui_name}")
             col1, col2, col3 = st.columns([3, 1, 1])
             
@@ -402,9 +467,9 @@ elif page == "🔑 API Keys":
             keys_list = [k.strip() for k in input_keys.split("\n") if k.strip()]
             for idx, key_val in enumerate(keys_list):
                 if idx == 0:
-                    updates[f"{base_name.upper()}_API_KEY"] = key_val
+                    updates[f"{prefix}"] = key_val
                 else:
-                    updates[f"{base_name.upper()}_API_KEY_{idx}"] = key_val
+                    updates[f"{prefix}_{idx}"] = key_val
                     
             db_updates[f"provider_{base_name}"] = "true" if is_active else "false"
             db_updates[f"limit_{base_name}"] = str(limit)
@@ -413,7 +478,8 @@ elif page == "🔑 API Keys":
         
         if submit:
             # Save strictly LLM API keys via .env
-            save_env_vars(updates)
+            active_prefixes = [p["prefix"] for p in unique_providers.values()]
+            save_env_vars(updates, active_prefixes)
             
             # Save toggles and bounds in SQLite
             for k, v in db_updates.items():

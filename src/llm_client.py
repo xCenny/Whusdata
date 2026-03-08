@@ -20,66 +20,6 @@ from src.db import DatabaseManager
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------
-# MODEL TIERS
-# ---------------------------
-
-MODEL_TIERS = {
-    "fast": [
-        "gemini-flash",
-        "groq-fast",
-        "openai-mini"
-    ],
-    "reasoning": [
-        "gemini-pro",
-        "groq-large",
-        "openai-large",
-        "deepseek"
-    ]
-}
-
-
-# ---------------------------
-# MODEL CONFIG
-# ---------------------------
-
-MODEL_CONFIGS = {
-    "gemini-flash": {
-        "api_key_env_prefix": "GEMINI_API_KEY",
-        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "model_name": "gemini-2.0-flash"
-    },
-    "gemini-pro": {
-        "api_key_env_prefix": "GEMINI_API_KEY",
-        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "model_name": "gemini-2.5-pro"  # Fallback gracefully to stable if not found
-    },
-    "groq-fast": {
-        "api_key_env_prefix": "GROQ_API_KEY",
-        "base_url": "https://api.groq.com/openai/v1",
-        "model_name": "llama-3.1-8b-instant"
-    },
-    "groq-large": {
-        "api_key_env_prefix": "GROQ_API_KEY",
-        "base_url": "https://api.groq.com/openai/v1",
-        "model_name": "llama-3.3-70b-versatile"
-    },
-    "openai-mini": {
-        "api_key_env_prefix": "OPENAI_API_KEY",
-        "base_url": "https://api.openai.com/v1",
-        "model_name": "gpt-4o-mini"
-    },
-    "openai-large": {
-        "api_key_env_prefix": "OPENAI_API_KEY",
-        "base_url": "https://api.openai.com/v1",
-        "model_name": "gpt-4o"
-    },
-    "deepseek": {
-        "api_key_env_prefix": "DEEPSEEK_API_KEY",
-        "base_url": "https://api.deepseek.com/v1",
-        "model_name": "deepseek-chat"
-    }
-}
 
 
 # ---------------------------
@@ -129,15 +69,15 @@ class LLMClient:
 
     # ---------------------------
 
-    def _get_active_providers(self) -> List[Tuple[str, str]]:
+    def _get_active_providers(self) -> List[Dict[str, Any]]:
         """
-        Returns a list of tuples: (provider_name, api_key_value).
+        Returns a list of dicts with full provider configs and their 'api_key'.
         Filters out disabled providers, and handles cooldown unbans.
         """
         active = []
         now = datetime.now()
 
-        # Clear expired cooldowns (cooldowns are now tracked by API key)
+        # Clear expired cooldowns
         expired = [k for k, unban in self.cooldowns.items() if now > unban]
         for k in expired:
             logger.info("🟢 Cooldown expired for an API key. Restoring it to rotation.")
@@ -146,7 +86,7 @@ class LLMClient:
 
         import os
 
-        # 1. Read directly from the .env file with native python to ensure perfect parity with UI
+        # 1. Read directly from .env
         env_vars = {}
         if os.path.exists(".env"):
             with open(".env", "r") as f:
@@ -156,16 +96,20 @@ class LLMClient:
                         k, v = line.split("=", 1)
                         env_vars[k.strip()] = v.strip().strip("'\"")
                         
-        # 2. Merge with os.environ for bare-metal docker/system vars
+        # 2. Merge with os.environ
         for _k, _v in os.environ.items():
             if _k not in env_vars:
                 env_vars[_k] = _v
 
-        for provider, config in MODEL_CONFIGS.items():
-            # Check UI toggle
-            provider_base = provider.split('-')[0]
-            is_active = self.db.get_setting(f"provider_{provider_base}")
-            if is_active == "false":
+        all_providers = self.db.get_all_providers()
+
+        for config in all_providers:
+            if not config.get("is_active"):
+                continue
+
+            provider_base = config["provider_base"]
+            is_active_setting = self.db.get_setting(f"provider_{provider_base}")
+            if is_active_setting == "false":
                 continue
 
             # Gather all env vars starting with prefix
@@ -175,16 +119,17 @@ class LLMClient:
                 if k and k.startswith(prefix) and v:
                     keys.append(v)
             
-            # Remove exact duplicates just in case
             keys = list(set(keys))
             
             for key_val in keys:
-                # Check Key-Level Cooldown
                 if key_val in self.cooldowns:
                     continue
-                # Mark as loaded / active
                 self.db.update_api_health(key_val, provider_base.capitalize(), "ACTIVE", None, None)
-                active.append((provider, key_val))
+                
+                # Clone config to inject api_key
+                cfg = dict(config)
+                cfg["api_key"] = key_val
+                active.append(cfg)
 
         if not active:
             logger.error("❌ NO API KEYS FOUND OR ALL KEYS IN COOLDOWN/DISABLED.")
@@ -217,27 +162,24 @@ class LLMClient:
         force_model: str = None
     ) -> Dict[str, Any]:
 
-        preferred = MODEL_TIERS.get(role, [])
-
-        # Priority includes providers in the preferred tier that are active and whose KEY is not in cooldown
+        # Filter by role tier
         priority_slots = [
-            (p, k) for p, k in self.active_providers_pool
-            if p in preferred and k not in self.cooldowns
+            cfg for cfg in self.active_providers_pool
+            if cfg.get("role_tier") == role and cfg["api_key"] not in self.cooldowns
         ]
         
-        # Fallback are active providers not in preferred tier and whose KEY is not in cooldown
         fallback_slots = [
-            (p, k) for p, k in self.active_providers_pool
-            if p not in preferred and k not in self.cooldowns
+            cfg for cfg in self.active_providers_pool
+            if cfg.get("role_tier") != role and cfg["api_key"] not in self.cooldowns
         ]
 
         provider_slots = []
         is_forced = False
         
         if force_model and force_model != "Default (Round-Robin)":
-            forced_slots = [(p, k) for p, k in self.active_providers_pool if p == force_model and k not in self.cooldowns]
+            forced_slots = [cfg for cfg in self.active_providers_pool if cfg["name"] == force_model and cfg["api_key"] not in self.cooldowns]
             if forced_slots:
-                forced_slots.sort(key=lambda x: (x[0], x[1]))
+                forced_slots.sort(key=lambda x: (x["name"], x["api_key"]))
                 provider_slots = forced_slots
                 is_forced = True
                 
@@ -251,8 +193,8 @@ class LLMClient:
 
         if not is_forced:
             # Sort to ensure stable, predictable order before rotating
-            priority_slots.sort(key=lambda x: (x[0], x[1]))
-            fallback_slots.sort(key=lambda x: (x[0], x[1]))
+            priority_slots.sort(key=lambda x: (x["name"], x["api_key"]))
+            fallback_slots.sort(key=lambda x: (x["name"], x["api_key"]))
             
             # Rotate priority slots independently
             if priority_slots:
@@ -278,15 +220,18 @@ class LLMClient:
 
         last_error = None
 
-        for provider, api_key in provider_slots:
+        for cfg in provider_slots:
+            provider_name = cfg["name"]
+            api_key = cfg["api_key"]
+            provider_base = cfg["provider_base"]
+            
             try:
                 # Double-check cooldown just in case it was added in the same loop
                 if api_key in self.cooldowns:
                     continue
                     
                 return self._call_provider(
-                    provider,
-                    api_key,
+                    cfg,
                     prompt,
                     system_message,
                     temperature,
@@ -295,22 +240,22 @@ class LLMClient:
                 )
 
             except AuthenticationError as e:
-                logger.error(f"❌ AUTH ERROR on {provider}. Placing specific API Key in 2-hour cooldown.")
+                logger.error(f"❌ AUTH ERROR on {provider_name}. Placing specific API Key in 2-hour cooldown.")
                 unban_time = datetime.now() + timedelta(hours=2)
                 self.cooldowns[api_key] = unban_time
-                self.db.update_api_health(api_key, provider.split('-')[0].capitalize(), "ERROR", f"Auth Error: {str(e)[:100]}", unban_time.isoformat())
+                self.db.update_api_health(api_key, provider_base.capitalize(), "ERROR", f"Auth Error: {str(e)[:100]}", unban_time.isoformat())
 
             except RateLimitError as e:
-                logger.warning(f"⏳ RATE LIMIT on {provider}. Placing specific API Key in 2-hour cooldown.")
+                logger.warning(f"⏳ RATE LIMIT on {provider_name}. Placing specific API Key in 2-hour cooldown.")
                 unban_time = datetime.now() + timedelta(hours=2)
                 self.cooldowns[api_key] = unban_time
-                self.db.update_api_health(api_key, provider.split('-')[0].capitalize(), "COOLDOWN", f"Rate Limit: {str(e)[:100]}", unban_time.isoformat())
+                self.db.update_api_health(api_key, provider_base.capitalize(), "COOLDOWN", f"Rate Limit: {str(e)[:100]}", unban_time.isoformat())
 
             except Exception as e:
-                logger.warning(f"⚠️ {provider} failed: {str(e)[:120]}")
+                logger.warning(f"⚠️ {provider_name} failed: {str(e)[:120]}")
                 last_error = e
                 # Do not blacklist for other random transient errors, but log them to DB
-                self.db.update_api_health(api_key, provider.split('-')[0].capitalize(), "ACTIVE", f"Transient: {str(e)[:100]}", None)
+                self.db.update_api_health(api_key, provider_base.capitalize(), "ACTIVE", f"Transient: {str(e)[:100]}", None)
 
         raise RuntimeError(f"All available keys/providers failed. Last error: {last_error}")
 
@@ -327,8 +272,7 @@ class LLMClient:
     )
     def _call_provider(
         self,
-        provider: str,
-        api_key: str,
+        config: Dict[str, Any],
         prompt: str,
         system_message: str,
         temperature: float,
@@ -336,10 +280,8 @@ class LLMClient:
         max_tokens: int
     ) -> Dict[str, Any]:
 
-        config = MODEL_CONFIGS[provider]
-
         client = OpenAI(
-            api_key=api_key, # Using the specific rotated key
+            api_key=config["api_key"],
             base_url=config["base_url"]
         )
 
@@ -364,18 +306,25 @@ class LLMClient:
         }
 
         # Force strict JSON format for OpenAI / Groq
-        if expect_json and ("openai" in provider or "groq" in provider or "deepseek" in provider):
+        provider_name = config["name"].lower()
+        if expect_json and ("openai" in provider_name or "groq" in provider_name or "deepseek" in provider_name):
             kwargs["response_format"] = {"type": "json_object"}
 
         response = client.chat.completions.create(**kwargs)
 
-        # Intrinsic delay to prevent burst rate limit
-        time.sleep(1)
+        # Apply Artificial Free Tier Delay if active to prevent rate limits
+        if config.get("is_free_tier"):
+            delay = config.get("free_tier_delay", 0)
+            if delay > 0:
+                logger.info(f"⏳ Dynamic Free Tier Delay activated: sleeping for {delay}s for {provider_name}")
+                time.sleep(delay)
+        else:
+            time.sleep(1) # Base safe delay
 
         raw = response.choices[0].message.content
 
         usage = {
-            "provider": provider,
+            "provider": config["name"],
             "model": config["model_name"],
             "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
             "completion_tokens": response.usage.completion_tokens if response.usage else 0
@@ -384,7 +333,7 @@ class LLMClient:
         total_tokens = usage["prompt_tokens"] + usage["completion_tokens"]
 
         # Check and increment token usage via BudgetGuardian
-        self.guardian.check_usage(provider, total_tokens)
+        self.guardian.check_usage(config["provider_base"], total_tokens)
 
         if expect_json:
             data = self.extract_json(raw)
