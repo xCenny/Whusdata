@@ -53,7 +53,7 @@ Açık kaynaklı dil modellerini eğitmek (SFT / RLHF fine-tuning) amacıyla **7
 - **Sürekli Odaklı Araştırma (Continuous Deep Research)**: "Weekly Focus Planner" üzerinden verdiğiniz hedefler (örn: Kuantum Fiziği) artık tek seferlik değildir. Sistem o hedefe bir "Ağırlık Derecesi (Priority)" atar (`Critical` konular 5 kat daha sık araştırılır) ve belirlenen hafta bitene kadar o konunun dibine kadar iner. Veri zehirlenmesini önlemek için de araya rastgele Wikipedia ansiklopedi bilgileri harmanlar (Hybrid Mix).
 - **API Sağlık Monitörü (API Health Monitor)**: Sisteme girdiğiniz tüm API Anahtarları UI'da anlık olarak izlenir. Bir anahtar `Authentication Error` veya `Rate Limit` yediğinde bunu anında kırmızı/sarı SQLite uyarılarıyla dashboard'a yansıtır ve o anahtarı otomatik 2 saatlik cezaya (Cooldown) gönderip diğerlerinden tam gaz devam eder.
 
-### 🥊 Adversarial Reasoning Evolution (Phase 9 & 10)
+### 🥊 Adversarial Reasoning Evolution (Phase 9-11)
 - **Gelişmiş Sentetik Akıl Yürütme (8-12 Mesaj)**: Diyaloglar artık sabit 3-tur değil, otonom olarak **3 ile 6 tur (6-12 toplam mesaj)** arasında derinleşmektedir. Bu, modelin uzun süreli tartışmaları ve karmaşık mantık zincirlerini (synthetic reasoning) öğrenmesini sağlar.
 - **Yapay Zeka Destekli Otonom Bitiş (LLM-Driven Termination)**: Konuşmalar hedef tura ulaşmasa bile, Asistan (Teacher) karşı tarafın tekrara düştüğünü veya konunun saptığını (Logical Drift) hissederse `conclude_debate: true` bayrağı ile tartışmayı anında ve otonom olarak bitirip hakeme yollar. Token ve kalite israfı sıfıra iner.
 - **Hatalı/Çöpe Atılan Veri İzleme (Failed Conversation UI)**: Hakem (Critic) tarafından düşük puan alıp çöpe atılan veriler artık silinmez. UI üzerinden (Tier 0 olarak) tüm "FAIL" alan konuşmaları, mantıksal çöküş noktalarını ve "Critic Feedback" bölümünü satır satır şeffaf bir şekilde inceleyebilirsiniz.
@@ -61,6 +61,7 @@ Açık kaynaklı dil modellerini eğitmek (SFT / RLHF fine-tuning) amacıyla **7
 - **Değişken Cevap Uzunlukları**: LLM'lerin bitmek bilmeyen paragraf yazma (500-word essay) sendromu aşılmış; %30 Kısa/Punchy (2-3 cümle), %40 Orta ve %30 Detaylı açıklama dengesi getirilmiştir.
 - **Mantık Saldırıları (Logic Attacks)**: Kullanıcı ajanı; *Strawman*, *Ad Hominem*, *False Dilemma* gibi safsataları bilinçli kullanır; asistanın daha önce söylediği ile çeliştiğini iddia eden tuzaklar kurar (Contradiction Trap) ve sürekli kanıt ("Source?") talep eder.
 - **Halüsinasyon Koruması (Citation Hedging)**: Asistan, kullanıcıdan gelen kaynak taleplerine karşılık sahte DOI veya dergi sayısı uydurmak yerine, "Citation Uncertainty" kuralı ile belirsizliği dürüstçe itiraf edip genel literatür bilgisi sunmaya (Hedging) zorlanır.
+- **Contextual Memory Recall (Organik Hafıza)**: Asistan (Teacher), 2. ve 3. tur cevaplarında kullanıcının önceki konuşmalarında kullandığı spesifik bir kelimeye, hatalı bir analojiye veya safsataya doğrudan *alaycı olmayan bir gönderme* (Recall) yaparak, konuşmanın kopuk parçalar değil **derin bir multi-turn zincir** olduğunu kanıtlar. Bu özellik, modelin bağlam (context) takibini zirveye çıkarır.
 - **Token Kullanım Grafikleri**: Dashboard üzerinde son 14 günlük token harcamalarınızı gösteren interaktif bar tabloları eklenmiştir.
 
 ### 4 Ajan — 4 Görev
