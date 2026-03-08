@@ -201,7 +201,10 @@ class PipelineGraph:
         if state.get("rejected"):
             return "finalize"
         
-        if state.get("conclude_debate", False):
+        turn = state.get("current_turn", 1) # This is actually the NEXT turn number now
+        
+        # Enforce minimum 2 turns before allowing autonomous conclusion
+        if state.get("conclude_debate", False) and turn > 2:
             return "finalize"
             
         turn = state.get("current_turn", 1) # This is actually the NEXT turn number now
