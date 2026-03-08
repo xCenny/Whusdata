@@ -24,11 +24,11 @@ logger = logging.getLogger(__name__)
 # ── Tier Classification ──
 def classify_tier(confidence: float) -> int:
     """Classifies a generation into a quality tier based on critic confidence."""
-    if confidence >= 0.85:
+    if confidence >= 0.75:
         return 1  # Gold
-    elif confidence >= 0.70:
+    elif confidence >= 0.65:
         return 2  # Silver
-    elif confidence >= 0.60:
+    elif confidence >= 0.55:
         return 3  # Bronze
     return 0  # Discard
 
