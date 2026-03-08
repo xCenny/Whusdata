@@ -79,6 +79,14 @@ class DatabaseManager:
                     cursor.execute("ALTER TABLE generations ADD COLUMN critic_model_used TEXT DEFAULT 'unknown';")
                 except sqlite3.OperationalError:
                     pass
+                try:
+                    cursor.execute("ALTER TABLE generations ADD COLUMN critic_analytics TEXT;")
+                except sqlite3.OperationalError:
+                    pass
+                try:
+                    cursor.execute("ALTER TABLE generations ADD COLUMN factual_score REAL DEFAULT 0.0;")
+                except sqlite3.OperationalError:
+                    pass
                     
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS cost_log (
