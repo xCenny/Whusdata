@@ -82,8 +82,12 @@ Output MUST be valid JSON only, exactly in this structure:
         "memory_consistency": 0.0-1.0,
         "logic_and_fallacy_handling": 0.0-1.0,
         "conflict_resolution": 0.0-1.0,
-        "empathy": 0.0-1.0
+        "empathy": 0.0-1.0,
+        "factual_accuracy": 0.0-1.0
     }},
+    "reasoning": "Deep Chain-of-Thought analysis behind your scores.",
+    "detected_fallacies": ["Fallacy 1", "Fallacy 2"],
+    "assistant_counters": ["Counter 1", "Counter 2"],
     "failure_type": "NONE or a specific error tag (REQUIRED even if PASS)",
     "feedback": "Concise, brutal explanation of your grading.",
     "verified_metadata": {{

@@ -261,21 +261,30 @@ class PipelineGraph:
             logic = float(scores.get("logic_and_fallacy_handling", 0.0))
             conflict = float(scores.get("conflict_resolution", 0.0))
             empathy = float(scores.get("empathy", 0.0))
+            factual = float(scores.get("factual_accuracy", 1.0))
             
             computed_confidence = round(mem * 0.35 + logic * 0.30 + conflict * 0.25 + empathy * 0.10, 3)
             
             critic_status = "PASS" if computed_confidence >= 0.60 else "FAIL"
             failure_type = result.get("failure_type", "NONE")
             
+            critic_analytics = {
+                "reasoning": result.get("reasoning", ""),
+                "detected_fallacies": result.get("detected_fallacies", []),
+                "assistant_counters": result.get("assistant_counters", [])
+            }
+            
             critic_data = {
                 "status": critic_status,
                 "confidence": computed_confidence,
                 "memory_consistency": mem,
                 "logic_score": logic,
+                "factual_score": factual,
                 "winner": result.get("winner", "Unknown"),
                 "failure_type": failure_type,
                 "feedback": result.get("feedback", ""),
-                "scores": scores
+                "scores": scores,
+                "analytics": critic_analytics
             }
             
             return {

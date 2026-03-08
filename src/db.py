@@ -56,7 +56,9 @@ class DatabaseManager:
                         generation_mode TEXT DEFAULT 'production',
                         model_used TEXT DEFAULT 'unknown',
                         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        sha256_hash TEXT UNIQUE
+                        sha256_hash TEXT UNIQUE,
+                        critic_analytics TEXT,
+                        factual_score REAL DEFAULT 0.0
                     );
                 """)
                 
@@ -448,6 +450,8 @@ class DatabaseManager:
                         "logic_score": r_dict.get("logic_score", 0.0),
                         "critic_confidence": r_dict["critic_confidence"],
                         "memory_score": r_dict["memory_consistency_score"],
+                        "factual_score": float(r_dict.get("factual_score", 0.0) or 0.0),
+                        "critic_analytics": json.loads(r_dict.get("critic_analytics", "{}")) if r_dict.get("critic_analytics") else {},
                         "model_used": r_dict.get("model_used", "unknown"),
                         "messages": clean
                     }
@@ -483,9 +487,10 @@ class DatabaseManager:
                         persona_type, conflict_type, resolution_style, difficulty_level, domain,
                         tier, critic_status, critic_confidence, memory_consistency_score,
                         logic_score, winner, failure_type,
-                        generation_mode, model_used, critic_model_used, sha256_hash
+                        generation_mode, model_used, critic_model_used, sha256_hash,
+                        critic_analytics, factual_score
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     topic,
                     convo_json,
@@ -498,13 +503,15 @@ class DatabaseManager:
                     critic_data.get("status", "FAIL"),
                     critic_data.get("confidence", 0.0),
                     critic_data.get("memory_consistency", 0.0),
-                    critic_data.get("logic_and_fallacy_handling", 0.0),
+                    critic_data.get("logic_score", 0.0),
                     critic_data.get("winner", "Unknown"),
                     critic_data.get("failure_type", "NONE"),
                     mode,
                     metadata.get("model_used", "unknown"),
                     critic_data.get("model_used", "unknown"),
-                    sha256_hash
+                    sha256_hash,
+                    json.dumps(critic_data.get("analytics", {}), ensure_ascii=False),
+                    critic_data.get("factual_score", 0.0)
                 ))
                 row_id = cursor.lastrowid
                 conn.commit()
