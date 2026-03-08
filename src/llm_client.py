@@ -329,9 +329,7 @@ class LLMClient:
         if expect_json and ("openai" in provider_name or "groq" in provider_name or "deepseek" in provider_name):
             kwargs["response_format"] = {"type": "json_object"}
 
-        response = client.chat.completions.create(**kwargs)
-
-        # Apply Artificial Free Tier Delay if active to prevent rate limits
+        # Apply Artificial Free Tier Delay BEFORE request to actually prevent rate limits
         if config.get("key_is_free_tier"):
             delay = config.get("key_free_tier_delay", 0)
             if delay > 0:
@@ -341,6 +339,8 @@ class LLMClient:
                 time.sleep(1)
         else:
             time.sleep(1) # Base safe delay
+            
+        response = client.chat.completions.create(**kwargs)
 
         raw = response.choices[0].message.content
 
