@@ -258,7 +258,7 @@ class PipelineGraph:
             
             scores = result.get("scores", {})
             mem = float(scores.get("memory_consistency", 0.0))
-            logic = float(scores.get("logic", 0.0))
+            logic = float(scores.get("logic_and_fallacy_handling", 0.0))
             conflict = float(scores.get("conflict_resolution", 0.0))
             empathy = float(scores.get("empathy", 0.0))
             
