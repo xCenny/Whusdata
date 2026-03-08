@@ -263,7 +263,13 @@ class PipelineGraph:
             empathy = float(scores.get("empathy", 0.0))
             factual = float(scores.get("factual_accuracy", 1.0))
             
-            computed_confidence = round(mem * 0.35 + logic * 0.30 + conflict * 0.25 + empathy * 0.10, 3)
+            computed_confidence = round(
+                mem * 0.20 + 
+                logic * 0.25 + 
+                conflict * 0.20 + 
+                empathy * 0.10 + 
+                factual * 0.25, 
+            3)
             
             critic_status = "PASS" if computed_confidence >= 0.60 else "FAIL"
             failure_type = result.get("failure_type", "NONE")
