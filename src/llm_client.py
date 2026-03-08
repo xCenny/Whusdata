@@ -313,11 +313,18 @@ class LLMClient:
         response = client.chat.completions.create(**kwargs)
 
         # Apply Artificial Free Tier Delay if active to prevent rate limits
-        if config.get("is_free_tier"):
-            delay = config.get("free_tier_delay", 0)
+        is_free_tier = self.db.get_setting(f"free_tier_{config['provider_base']}") == "true"
+        if is_free_tier:
+            try:
+                delay = int(self.db.get_setting(f"delay_{config['provider_base']}") or 0)
+            except ValueError:
+                delay = 0
+                
             if delay > 0:
-                logger.info(f"⏳ Dynamic Free Tier Delay activated: sleeping for {delay}s for {provider_name}")
+                logger.info(f"⏳ Free Tier Delay activated: sleeping {delay}s for {provider_name} ({config['provider_base']})")
                 time.sleep(delay)
+            else:
+                time.sleep(1)
         else:
             time.sleep(1) # Base safe delay
 

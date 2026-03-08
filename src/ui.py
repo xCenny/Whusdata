@@ -310,7 +310,7 @@ elif page == "🤖 Models & Prices":
     
     if not df.empty:
         # Reorder columns for friendliness
-        cols = ["id", "is_active", "name", "provider_base", "api_key_env_prefix", "base_url", "model_name", "role_tier", "is_free_tier", "free_tier_delay", "cost_input_1m", "cost_output_1m"]
+        cols = ["id", "is_active", "name", "provider_base", "api_key_env_prefix", "base_url", "model_name", "role_tier", "cost_input_1m", "cost_output_1m"]
         df = df[cols]
         
         edited_df = st.data_editor(
@@ -320,8 +320,6 @@ elif page == "🤖 Models & Prices":
             column_config={
                 "id": None, # hide ID
                 "is_active": st.column_config.CheckboxColumn("Active?", help="Enable or disable entire model"),
-                "is_free_tier": st.column_config.CheckboxColumn("Free Tier?", help="Applies delay if checked"),
-                "free_tier_delay": st.column_config.NumberColumn("Delay (s)", min_value=0),
                 "cost_input_1m": st.column_config.NumberColumn("In Cost / 1M ($)", format="$%.3f"),
                 "cost_output_1m": st.column_config.NumberColumn("Out Cost / 1M ($)", format="$%.3f")
             }
@@ -340,7 +338,6 @@ elif page == "🤖 Models & Prices":
                 for k, v in row_dict.items():
                     if pd.isna(v): row_dict[k] = None
                 
-                row_dict["is_free_tier"] = 1 if row_dict.get("is_free_tier") else 0
                 row_dict["is_active"] = 1 if row_dict.get("is_active") else 0
                 
                 if pd.isna(r_id):
@@ -456,18 +453,22 @@ elif page == "🔑 API Keys":
         
         for ui_name, base_name, keys_str, prefix in providers:
             st.markdown(f"### {ui_name}")
-            col1, col2, col3 = st.columns([3, 1, 1])
+            c_text, c_tgl, c_free = st.columns([3, 1, 1])
             
             # Multiple Keys text area
-            input_keys = col1.text_area(f"{ui_name} Keys (One per line)", value=keys_str, height=100, key=f"key_{base_name}")
+            input_keys = c_text.text_area(f"{ui_name} Keys (One per line)", value=keys_str, height=100, key=f"key_{base_name}")
             
-            # Status Toggle (default to true if missing)
+            # Status & Limit
             curr_active = db.get_setting(f"provider_{base_name}") != "false"
-            is_active = col2.checkbox(f"Enable {ui_name}", value=curr_active, key=f"tgl_{base_name}")
-            
-            # Daily Limit
+            is_active = c_tgl.checkbox(f"Enable {ui_name}", value=curr_active, key=f"tgl_{base_name}")
             curr_limit = db.get_setting(f"limit_{base_name}") or "2000000"
-            limit = col3.number_input(f"Daily Token Limit", min_value=1000, max_value=100000000, value=int(curr_limit), step=10000, key=f"lim_{base_name}")
+            limit = c_tgl.number_input(f"Daily Limit", min_value=1000, max_value=100000000, value=int(curr_limit), step=10000, key=f"lim_{base_name}")
+            
+            # Free Tier Toggles
+            curr_free = db.get_setting(f"free_tier_{base_name}") == "true"
+            is_free = c_free.checkbox(f"Free Tier API?", value=curr_free, key=f"free_{base_name}", help="Adds artificial delay to prevent rate limits.")
+            curr_delay = db.get_setting(f"delay_{base_name}") or "0"
+            delay = c_free.number_input(f"Delay (s)", min_value=0, max_value=300, value=int(curr_delay), key=f"del_{base_name}")
             
             st.markdown("---")
             
@@ -481,6 +482,8 @@ elif page == "🔑 API Keys":
                     
             db_updates[f"provider_{base_name}"] = "true" if is_active else "false"
             db_updates[f"limit_{base_name}"] = str(limit)
+            db_updates[f"free_tier_{base_name}"] = "true" if is_free else "false"
+            db_updates[f"delay_{base_name}"] = str(delay)
 
         submit = st.form_submit_button("💾 Save All Providers", use_container_width=True)
         
