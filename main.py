@@ -161,19 +161,32 @@ def orchestrator_loop():
             final_state = teacher_graph.graph.invoke(initial_state)
             
             # ── Extract primary model used for observability ──
-            primary_model = "unknown"
-            for usage in final_state.get("usage_log", []):
+            gen_model = "unknown"
+            critic_model = "unknown"
+            usage_log = final_state.get("usage_log", [])
+            
+            for i, usage in enumerate(usage_log):
+                model_name = usage.get("model", "unknown")
                 db.log_cost(
-                    model=usage.get("model", "unknown"),
+                    model=model_name,
                     prompt_tokens=usage.get("prompt_tokens", 0),
                     completion_tokens=usage.get("completion_tokens", 0)
                 )
-                if usage.get("model") != "unknown":
-                    primary_model = usage.get("model")
+                if model_name != "unknown":
+                    # The last token usage typically comes from the Critic node
+                    if i == len(usage_log) - 1:
+                        critic_model = model_name
+                    # The first token usage comes from the User/Assistant generation nodes
+                    elif gen_model == "unknown":
+                        gen_model = model_name
                     
+            if "metadata" not in final_state:
+                final_state["metadata"] = {}
+            final_state["metadata"]["model_used"] = gen_model
+            
             if "critic_data" not in final_state:
                 final_state["critic_data"] = {}
-            final_state["critic_data"]["model_used"] = primary_model
+            final_state["critic_data"]["model_used"] = critic_model
 
             # ═══════════════════════════════════════════
             # 3. GUARD LAYER — Production Validation
