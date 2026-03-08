@@ -152,6 +152,7 @@ def orchestrator_loop():
                 "iterations": 0,
                 "rejected": False,
                 "api_failure": False,
+                "conclude_debate": False,
                 "current_turn": 1,
                 "usage_log": [],
                 "status": "pending_evaluation"

@@ -72,6 +72,7 @@ class GraphState(TypedDict):
     iterations: int
     rejected: bool
     api_failure: bool
+    conclude_debate: bool
     current_turn: int  # 1 to 3
     usage_log: List[Dict[str, Any]] # To track cost across all nodes
 
@@ -182,10 +183,15 @@ class PipelineGraph:
                 "content": data.get("content", "")
             })
             
+            conclude = data.get("conclude_debate", False)
+            if conclude:
+                logger.info("Graph: Assistant elected to conclude the debate autonomously to prevent drift.")
+            
             return {
                 "conversation_history": history,
                 "usage_log": state.get("usage_log", []) + [usage],
-                "current_turn": turn + 1
+                "current_turn": turn + 1,
+                "conclude_debate": conclude
             }
         except Exception as e:
             logger.error(f"Assistant turn generation failed: {e}")
@@ -194,6 +200,10 @@ class PipelineGraph:
     def edge_after_assistant(self, state: GraphState) -> str:
         if state.get("rejected"):
             return "finalize"
+        
+        if state.get("conclude_debate", False):
+            return "finalize"
+            
         turn = state.get("current_turn", 1) # This is actually the NEXT turn number now
         target_turns = state.get("metadata", {}).get("target_turns", 3)
         if turn > target_turns:
