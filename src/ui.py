@@ -260,6 +260,14 @@ elif page == "⚙️ Pipeline Control":
             db.set_setting("pipeline_status", "paused")
             st.rerun()
     
+    st.markdown("---")
+    st.subheader("⚙️ Behavior Settings")
+    
+    # Load current settings, fallback to defaults
+    current_speed = int(db.get_setting("pipeline_speed") or 15)
+    current_idle = int(db.get_setting("pipeline_idle") or 60)
+    current_critic = db.get_setting("critic_model_override") or "Default (Round-Robin)"
+    
     # List available model names from configs
     all_providers = db.get_all_providers()
     available_models = ["Default (Round-Robin)"] + [p["name"] for p in all_providers]
