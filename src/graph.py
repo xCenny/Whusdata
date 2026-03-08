@@ -119,7 +119,8 @@ class PipelineGraph:
         # Set persona if 1st turn
         if turn == 1:
             persona = get_random_persona()
-            target_turns = random.randint(4, 6) # Generate 4 to 6 turns (8 to 12 messages)
+            # Dynamic Turn Optimization: Favor 3-4 turns to prevent logical drift, rarely 5-6 for deep topics.
+            target_turns = random.choices([3, 4, 5, 6], weights=[0.35, 0.45, 0.15, 0.05])[0]
             state["metadata"] = {
                 "persona_type": persona, 
                 "conflict_type": "Variable Tactic",
