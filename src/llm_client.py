@@ -86,7 +86,7 @@ class LLMClient:
 
         import os
 
-        # 1. Read directly from .env
+        # 1. Read directly from .env & environment to ingest new keys
         env_vars = {}
         if os.path.exists(".env"):
             with open(".env", "r") as f:
@@ -96,12 +96,34 @@ class LLMClient:
                         k, v = line.split("=", 1)
                         env_vars[k.strip()] = v.strip().strip("'\"")
                         
-        # 2. Merge with os.environ
         for _k, _v in os.environ.items():
             if _k not in env_vars:
                 env_vars[_k] = _v
 
         all_providers = self.db.get_all_providers()
+        db_keys = self.db.get_api_keys()
+        known_key_vals = set([k["api_key"] for k in db_keys])
+
+        # Auto-ingest any new keys from env variables
+        for config in all_providers:
+            prefix = config["api_key_env_prefix"]
+            pb = config["provider_base"]
+            for k, v in env_vars.items():
+                if k and k.startswith(prefix) and v and v not in known_key_vals:
+                    try:
+                        self.db.insert_api_key({
+                            "provider_base": pb,
+                            "api_key": v,
+                            "is_free_tier": 0,
+                            "free_tier_delay": 0,
+                            "is_active": 1
+                        })
+                        known_key_vals.add(v)
+                    except Exception:
+                        pass
+                        
+        # Reload keys after potential auto-ingests
+        db_keys = self.db.get_api_keys()
 
         for config in all_providers:
             if not config.get("is_active"):
@@ -112,16 +134,11 @@ class LLMClient:
             if is_active_setting == "false":
                 continue
 
-            # Gather all env vars starting with prefix
-            prefix = config["api_key_env_prefix"]
-            keys = []
-            for k, v in env_vars.items():
-                if k and k.startswith(prefix) and v:
-                    keys.append(v)
-            
-            keys = list(set(keys))
-            
-            for key_val in keys:
+            # Find all active keys for this provider in the DB
+            provider_keys = [k for k in db_keys if k["provider_base"] == provider_base and k.get("is_active")]
+
+            for pk in provider_keys:
+                key_val = pk["api_key"]
                 if key_val in self.cooldowns:
                     continue
                 self.db.update_api_health(key_val, provider_base.capitalize(), "ACTIVE", None, None)
@@ -129,6 +146,8 @@ class LLMClient:
                 # Clone config to inject api_key
                 cfg = dict(config)
                 cfg["api_key"] = key_val
+                cfg["key_is_free_tier"] = bool(pk.get("is_free_tier", 0))
+                cfg["key_free_tier_delay"] = int(pk.get("free_tier_delay", 0))
                 active.append(cfg)
 
         if not active:
@@ -313,15 +332,10 @@ class LLMClient:
         response = client.chat.completions.create(**kwargs)
 
         # Apply Artificial Free Tier Delay if active to prevent rate limits
-        is_free_tier = self.db.get_setting(f"free_tier_{config['provider_base']}") == "true"
-        if is_free_tier:
-            try:
-                delay = int(self.db.get_setting(f"delay_{config['provider_base']}") or 0)
-            except ValueError:
-                delay = 0
-                
+        if config.get("key_is_free_tier"):
+            delay = config.get("key_free_tier_delay", 0)
             if delay > 0:
-                logger.info(f"⏳ Free Tier Delay activated: sleeping {delay}s for {provider_name} ({config['provider_base']})")
+                logger.info(f"⏳ Free Tier Delay activated: sleeping {delay}s for {provider_name} [Key: {config['api_key'][:5]}...]")
                 time.sleep(delay)
             else:
                 time.sleep(1)

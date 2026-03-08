@@ -361,142 +361,116 @@ elif page == "🤖 Models & Prices":
 # ═══════════════════════════════════════════════
 elif page == "🔑 API Keys":
     st.title("🔑 API Provider Dashboard")
-    st.caption("Manage providers, rotate multiple keys, and set daily token limits.")
+    st.caption("Manage granular API keys, free tier behaviors, and daily token limits.")
     
-    def load_env_vars():
-        env_dict = {}
-        try:
-            with open(".env", "r") as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        k, v = line.split("=", 1)
-                        env_dict[k] = v.strip('"\'')
-        except FileNotFoundError:
-            pass
-        return env_dict
-
-    def save_env_vars(env_dict, allow_prefixes):
-        lines = []
-        try:
-            with open(".env", "r") as f:
-                lines = f.readlines()
-        except FileNotFoundError:
-            pass
+    # Display API Health Statuses
+    health_data = db.get_api_health()
+    if health_data:
+        st.markdown("### 📡 Current API Health Monitor")
+        for k, info in health_data.items():
+            status = info.get("status", "ACTIVE")
+            provider = info.get("provider", "Unknown")
+            err = info.get("last_error", "")
+            masked_key = f"{k[:8]}***{k[-4:]}" if len(k) > 12 else "****"
             
-        new_lines = []
-        
-        # Keep old stuff if it's not being overwritten AND not a targeted prefix we are clearing
-        for line in lines:
-            stripped = line.strip()
-            if stripped and not stripped.startswith("#") and "=" in stripped:
-                k = stripped.split("=", 1)[0]
-                
-                # If it's one of our prefixes, drop it because we rebuild it from scratch below
-                if any(k.startswith(p) for p in allow_prefixes):
-                    continue
-                else:
-                    new_lines.append(line)
-            else:
-                new_lines.append(line)
-                
-        # Inject new rotated keys
-        for k, v in env_dict.items():
-            if v:
-                new_lines.append(f"{k}={v}\n")
-                
-        with open(".env", "w") as f:
-            f.writelines(new_lines)
+            if status == "ACTIVE":
+                st.success(f"**{provider}** ({masked_key}): 🟢 OK - {err or 'No errors'}")
+            elif status == "COOLDOWN":
+                st.warning(f"**{provider}** ({masked_key}): ⏳ COOLDOWN (Rate Limit) - {err} | Until: {info.get('cooldown_until', 'Unknown')}")
+            elif status == "ERROR":
+                st.error(f"**{provider}** ({masked_key}): ❌ ERROR - {err}")
+        st.markdown("---")
 
-    # Dynamic lookups
+    # Provider-level global settings (Toggles & Daily Limits)
+    st.markdown("### 🌐 Global Provider Limits")
     all_p = db.get_all_providers()
-    unique_providers = {}
-    for p in all_p:
-        pb = p["provider_base"]
-        if pb not in unique_providers:
-            unique_providers[pb] = {
-                "ui_name": pb.capitalize(),
-                "base_name": pb,
-                "prefix": p["api_key_env_prefix"]
-            }
-
-    current_env = load_env_vars()
+    unique_b = list(set([p["provider_base"] for p in all_p]))
     
-    providers = []
-    for pb, info in unique_providers.items():
-        keys_str = "\n".join([v for k, v in current_env.items() if k.startswith(info["prefix"])])
-        providers.append((info["ui_name"], info["base_name"], keys_str, info["prefix"]))
+    if unique_b:
+        with st.form("provider_limits_form"):
+            db_updates = {}
+            for b in unique_b:
+                col1, col2 = st.columns(2)
+                curr_active = db.get_setting(f"provider_{b}") != "false"
+                is_active = col1.checkbox(f"Enable {b.capitalize()}", value=curr_active, key=f"tgl_{b}")
+                curr_limit = db.get_setting(f"limit_{b}") or "2000000"
+                limit = col2.number_input(f"Daily Token Limit for {b.capitalize()}", min_value=1000, max_value=100000000, value=int(curr_limit), step=10000, key=f"lim_{b}")
+                
+                db_updates[f"provider_{b}"] = "true" if is_active else "false"
+                db_updates[f"limit_{b}"] = str(limit)
+                
+            if st.form_submit_button("💾 Save Global Limits"):
+                for k, v in db_updates.items():
+                    db.set_setting(k, v)
+                st.success("Global Limits saved!")
+                st.rerun()
+            
+    st.markdown("---")
     
-    with st.form("api_keys_form"):
-        st.info("💡 You can enter multiple API keys for a provider by placing each key on a new line.")
+    # Granular Key Management
+    st.markdown("### 🔑 Granular Key Management")
+    st.info("💡 You can add multiple keys per provider. Explicitly mark specific keys as 'Free Tier' to give them dedicated safety delays.")
+    
+    keys_data = db.get_api_keys()
+    df_keys = pd.DataFrame(keys_data)
+    
+    if df_keys.empty:
+        df_keys = pd.DataFrame(columns=["id", "is_active", "provider_base", "api_key", "is_free_tier", "free_tier_delay"])
+    else:
+        cols = ["id", "is_active", "provider_base", "api_key", "is_free_tier", "free_tier_delay"]
+        df_keys = df_keys[[c for c in cols if c in df_keys.columns]]
         
-        # Display API Health Statuses
-        health_data = db.get_api_health()
-        if health_data:
-            st.markdown("### 📡 API Health Monitor")
-            for k, info in health_data.items():
-                status = info.get("status", "ACTIVE")
-                provider = info.get("provider", "Unknown")
-                err = info.get("last_error", "")
-                masked_key = f"{k[:8]}***{k[-4:]}" if len(k) > 12 else "****"
+    edited_keys = st.data_editor(
+        df_keys,
+        num_rows="dynamic",
+        use_container_width=True,
+        column_config={
+            "id": None,
+            "is_active": st.column_config.CheckboxColumn("Active?", default=True),
+            "provider_base": st.column_config.SelectboxColumn("Provider", options=unique_b, required=True),
+            "api_key": st.column_config.TextColumn("Secret API Key", required=True),
+            "is_free_tier": st.column_config.CheckboxColumn("Free Tier?", help="Applies delay when this specific key is used.", default=False),
+            "free_tier_delay": st.column_config.NumberColumn("Delay (s)", min_value=0, default=0)
+        }
+    )
+    
+    if st.button("💾 Save API Keys", type="primary"):
+        st.toast("Saving API keys...")
+        all_ids = set([k["id"] for k in keys_data])
+        current_ids = set()
+        
+        has_error = False
+        for _, row in edited_keys.iterrows():
+            row_dict = row.to_dict()
+            r_id = row_dict.pop("id", None)
+            
+            for k, v in row_dict.items():
+                if pd.isna(v): row_dict[k] = None
                 
-                if status == "ACTIVE":
-                    st.success(f"**{provider}** ({masked_key}): 🟢 OK - {err or 'No recent errors'}")
-                elif status == "COOLDOWN":
-                    st.warning(f"**{provider}** ({masked_key}): ⏳ COOLDOWN (Rate Limit) - {err} | Until: {info.get('cooldown_until', 'Unknown')}")
-                elif status == "ERROR":
-                    st.error(f"**{provider}** ({masked_key}): ❌ AUTH ERROR - {err}")
-            st.markdown("---")
-        
-        updates = {}
-        db_updates = {}
-        
-        for ui_name, base_name, keys_str, prefix in providers:
-            st.markdown(f"### {ui_name}")
-            c_text, c_tgl, c_free = st.columns([3, 1, 1])
-            
-            # Multiple Keys text area
-            input_keys = c_text.text_area(f"{ui_name} Keys (One per line)", value=keys_str, height=100, key=f"key_{base_name}")
-            
-            # Status & Limit
-            curr_active = db.get_setting(f"provider_{base_name}") != "false"
-            is_active = c_tgl.checkbox(f"Enable {ui_name}", value=curr_active, key=f"tgl_{base_name}")
-            curr_limit = db.get_setting(f"limit_{base_name}") or "2000000"
-            limit = c_tgl.number_input(f"Daily Limit", min_value=1000, max_value=100000000, value=int(curr_limit), step=10000, key=f"lim_{base_name}")
-            
-            # Free Tier Toggles
-            curr_free = db.get_setting(f"free_tier_{base_name}") == "true"
-            is_free = c_free.checkbox(f"Free Tier API?", value=curr_free, key=f"free_{base_name}", help="Adds artificial delay to prevent rate limits.")
-            curr_delay = db.get_setting(f"delay_{base_name}") or "0"
-            delay = c_free.number_input(f"Delay (s)", min_value=0, max_value=300, value=int(curr_delay), key=f"del_{base_name}")
-            
-            st.markdown("---")
-            
-            # Process multi-line keys before submit to bind them in case submit is clicked
-            keys_list = [k.strip() for k in input_keys.split("\n") if k.strip()]
-            for idx, key_val in enumerate(keys_list):
-                if idx == 0:
-                    updates[f"{prefix}"] = key_val
-                else:
-                    updates[f"{prefix}_{idx}"] = key_val
-                    
-            db_updates[f"provider_{base_name}"] = "true" if is_active else "false"
-            db_updates[f"limit_{base_name}"] = str(limit)
-            db_updates[f"free_tier_{base_name}"] = "true" if is_free else "false"
-            db_updates[f"delay_{base_name}"] = str(delay)
-
-        submit = st.form_submit_button("💾 Save All Providers", use_container_width=True)
-        
-        if submit:
-            # Save strictly LLM API keys via .env
-            active_prefixes = [p["prefix"] for p in unique_providers.values()]
-            save_env_vars(updates, active_prefixes)
-            
-            # Save toggles and bounds in SQLite
-            for k, v in db_updates.items():
-                db.set_setting(k, v)
+            if not row_dict.get("api_key") or not row_dict.get("provider_base"):
+                continue # Skip invalid rows
                 
-            st.success("✅ Providers saved! Pipeline will hot-reload them automatically.")
+            row_dict["is_free_tier"] = 1 if row_dict.get("is_free_tier") else 0
+            row_dict["is_active"] = 1 if row_dict.get("is_active") else 0
+            
+            if pd.isna(r_id):
+                # INSERT
+                try:
+                    db.insert_api_key(row_dict)
+                except Exception as e:
+                    has_error = True
+                    st.error(f"Error inserting key {row_dict['api_key'][:5]}: {e}")
+            else:
+                r_id = int(r_id)
+                current_ids.add(r_id)
+                db.update_api_key(r_id, row_dict)
+                
+        # DELETE any missing
+        for d in (all_ids - current_ids):
+            db.delete_api_key(d)
+                
+        if not has_error:
+            st.success("✅ API Keys successfully saved! (Changes take effect on next generation)")
             st.rerun()
 
 # ═══════════════════════════════════════════════

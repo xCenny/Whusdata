@@ -137,6 +137,16 @@ class DatabaseManager:
                     );
                 """)
                 cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS api_keys (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        provider_base TEXT,
+                        api_key TEXT UNIQUE,
+                        is_free_tier BOOLEAN DEFAULT 0,
+                        free_tier_delay INTEGER DEFAULT 0,
+                        is_active BOOLEAN DEFAULT 1
+                    );
+                """)
+                cursor.execute("""
                     CREATE TABLE IF NOT EXISTS llm_providers (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         name TEXT UNIQUE,
@@ -177,6 +187,32 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error initializing database: {e}")
             raise
+
+    # ── API Keys Helpers ──
+    def get_api_keys(self) -> List[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            rows = conn.execute("SELECT * FROM api_keys ORDER BY provider_base").fetchall()
+            return [dict(r) for r in rows]
+
+    def insert_api_key(self, data: Dict[str, Any]):
+        fields = ", ".join(data.keys())
+        placeholders = ", ".join(["?" for _ in data])
+        values = list(data.values())
+        with self.get_connection() as conn:
+            conn.execute(f"INSERT INTO api_keys ({fields}) VALUES ({placeholders})", values)
+            conn.commit()
+
+    def update_api_key(self, k_id: int, updates: Dict[str, Any]):
+        fields = ", ".join([f"{k} = ?" for k in updates.keys()])
+        values = list(updates.values()) + [k_id]
+        with self.get_connection() as conn:
+            conn.execute(f"UPDATE api_keys SET {fields} WHERE id = ?", values)
+            conn.commit()
+
+    def delete_api_key(self, k_id: int):
+        with self.get_connection() as conn:
+            conn.execute("DELETE FROM api_keys WHERE id = ?", (k_id,))
+            conn.commit()
 
     # ── Dynamic Models Helpers ──
     def get_all_providers(self) -> List[Dict[str, Any]]:
@@ -580,14 +616,14 @@ class DatabaseManager:
                 "rolling_7d_avg_memory": round(r7_avg_mem, 3)
             }
 
-    def log_cost(self, model_name: str, prompt_tokens: int, completion_tokens: int):
+    def log_cost(self, model: str, prompt_tokens: int, completion_tokens: int):
         """Logs the token usage and calculated cost for an LLM call using db pricing."""
         try:
             with self.get_connection() as conn:
                 # Fetch explicit pricing from llm_providers
                 row = conn.execute(
                     "SELECT cost_input_1m, cost_output_1m FROM llm_providers WHERE model_name = ? COLLATE NOCASE LIMIT 1",
-                    (model_name,)
+                    (model,)
                 ).fetchone()
                 
                 if row:
@@ -602,7 +638,7 @@ class DatabaseManager:
                 
                 conn.execute(
                     "INSERT INTO cost_log (model, prompt_tokens, completion_tokens, cost_usd) VALUES (?, ?, ?, ?)",
-                    (model_name, prompt_tokens, completion_tokens, cost_usd)
+                    (model, prompt_tokens, completion_tokens, cost_usd)
                 )
                 conn.commit()
         except Exception as e:
