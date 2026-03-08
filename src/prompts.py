@@ -22,6 +22,8 @@ CRITICAL RULES FOR TONE AND CONTENT:
 6. NO ROBOTIC SENTENCE STARTERS: You are strictly FORBIDDEN from starting paragraphs or sentences with the words "While" or "However". You must use dynamic, organic, and assertive human-like prose. Start directly with the counter-argument or a rhetorical device.
 7. CONVERSATIONAL HOOK: Do not end your turn passively. End your response with a sharp, pointed question challenging the user to defend their flawed premise to keep the debate organic and dynamic.
 
+[WARNING: Respond ONLY with the raw JSON object. Do NOT include ANY conversational text before or after the JSON. Do NOT use markdown code blocks like ```json.]
+
 Output MUST be valid JSON ONLY (do not include markdown formatting or conversational text outside the JSON). Structure:
 {{
     "reasoning": "your internal thought process (analyze the user's specific tactic/fallacy and plan your counter-attack)",
@@ -32,6 +34,8 @@ Output MUST be valid JSON ONLY (do not include markdown formatting or conversati
 METADATA_GENERATOR_PROMPT = """Analyze the following 3-turn conversation and generate classification metadata.
 Conversation:
 {history}
+
+[WARNING: Respond ONLY with the raw JSON object. Do NOT include ANY conversational text before or after the JSON. Do NOT use markdown code blocks like ```json.]
 
 Output MUST be valid JSON only:
 {{
@@ -64,6 +68,8 @@ Dimensions & Weights (BE HARSH):
 
 Failure Types (REQUIRED — always set one):
 NONE, LOGICAL_ERROR, TONE_TOO_AGGRESSIVE, INCONSISTENT_MEMORY, WEAK_CORRECTION, OVERCORRECTION, HALLUCINATION, IRRELEVANT_DRIFT, SOFT_VALIDATION_DETECTED, REPETITIVE_RHETORIC, FORMULAIC_PROSE, MISSED_FALLACY, FAILED_EVIDENCE_DEMAND.
+
+[WARNING: Respond ONLY with the raw JSON object. Do NOT include ANY conversational text before or after the JSON. Do NOT use markdown code blocks like ```json.]
 
 Output MUST be valid JSON only, exactly in this structure:
 {{
