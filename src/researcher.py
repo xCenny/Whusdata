@@ -88,14 +88,13 @@ class ResearchAgent:
         return selected
 
     def fetch_wikipedia_summaries(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Fetches random Wikipedia summaries as seed material, returning dicts with keyword IDs."""
+        """Fetches standard Wikipedia summaries based on search keywords."""
         summaries = []
         try:
             wikipedia.set_lang("en")
-            
             for item in items:
                 word = item["word"]
-                logger.info(f"Querying Wikipedia API for: {word}")
+                logger.info(f"Querying Wikipedia Search API for: {word}")
                 try:
                     search_results = wikipedia.search(word, results=10)
                     if not search_results:
@@ -103,39 +102,53 @@ class ResearchAgent:
                     
                     page_title = random.choice(search_results)
                     
-                    # Phase 12: Wikipedia Random Walk (Wiki-Jumping)
-                    # 60% chance to jump to a random link on the page to prevent infinite duplicate loops
                     if random.random() < 0.60:
                         try:
-                            # We must load the page to get its links
                             page = wikipedia.page(page_title, auto_suggest=False)
                             if page.links:
-                                jumped_title = random.choice(page.links)
-                                logger.info(f"Wiki-Jump! 🦘 Branching from '{page_title}' -> '{jumped_title}'")
-                                page_title = jumped_title
-                        except Exception as e:
-                            logger.debug(f"Wiki-Jump failed for {page_title}, falling back to original. Reason: {e}")
+                                page_title = random.choice(page.links)
+                        except Exception:
+                            pass
                             
                     summary = wikipedia.summary(page_title, sentences=5, auto_suggest=False)
-                    
                     text = f"Wiki Title: {page_title}. Summary: {summary}"
                     summaries.append({
                         "text": text,
                         "keyword_id": item["id"],
                         "word": word,
-                        "source": "wikipedia"
+                        "source": "wikipedia_search"
                     })
-                except wikipedia.exceptions.DisambiguationError:
-                    logger.debug(f"Disambiguation hit for {word}, skipping.")
-                except wikipedia.exceptions.PageError:
-                    logger.debug(f"Page not found for {word}, skipping.")
                 except Exception as e:
-                    logger.error(f"Error fetching wiki summary for {word}: {e}")
-                    
-            logger.info(f"Fetched {len(summaries)} summaries from Wikipedia.")
+                    logger.debug(f"Wiki fetch skipped for {word}: {e}")
         except Exception as e:
             logger.error(f"Meta error in fetch_wikipedia_summaries: {e}")
-            
+        return summaries
+
+    def fetch_wikipedia_random(self) -> List[Dict[str, Any]]:
+        """Fetches completely random Wikipedia articles."""
+        summaries = []
+        try:
+            wikipedia.set_lang("en")
+            # Grab up to 3 random titles
+            random_titles = wikipedia.random(3)
+            if isinstance(random_titles, str):
+                random_titles = [random_titles]
+                
+            for title in random_titles:
+                logger.info(f"Querying Wikipedia Random for: {title}")
+                try:
+                    summary = wikipedia.summary(title, sentences=5, auto_suggest=False)
+                    text = f"Random Wiki Title: {title}. Summary: {summary}"
+                    summaries.append({
+                        "text": text,
+                        "keyword_id": None,
+                        "word": title,
+                        "source": "wikipedia_random"
+                    })
+                except Exception as e:
+                    logger.debug(f"Random wiki fetch failed for {title}: {e}")
+        except Exception as e:
+            logger.error(f"Error in fetch_wikipedia_random: {e}")
         return summaries
 
     def fetch_arxiv_summaries(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -186,65 +199,190 @@ class ResearchAgent:
         logger.info(f"Fetched {len(summaries)} summaries from ArXiv.")
         return summaries
 
+    def fetch_rss_feeds(self, config_str: str) -> List[Dict[str, Any]]:
+        import json
+        import feedparser
+        summaries = []
+        try:
+            config = json.loads(config_str)
+            feeds = config.get("feeds", [])
+            for feed_url in feeds:
+                logger.info(f"Querying RSS Feed: {feed_url}")
+                parsed = feedparser.parse(feed_url)
+                if not parsed.entries:
+                    continue
+                # Pick up to 3 random recent entries
+                entries = random.sample(parsed.entries, min(3, len(parsed.entries)))
+                for entry in entries:
+                    title = entry.get("title", "")
+                    summary = entry.get("summary", "")
+                    text = f"RSS News: {title}. Excerpt: {summary}"
+                    summaries.append({
+                        "text": text,
+                        "keyword_id": None,
+                        "word": title,
+                        "source": "rss"
+                    })
+        except Exception as e:
+            logger.error(f"Error fetching RSS: {e}")
+        return summaries
+
+    def fetch_reddit(self, config_str: str) -> List[Dict[str, Any]]:
+        import json
+        import requests
+        summaries = []
+        headers = {"User-Agent": "Python:WhusdataResearchPipeline:v1.0 (by /u/xCenny)"}
+        try:
+            config = json.loads(config_str)
+            subreddits = config.get("subreddits", [])
+            if subreddits:
+                sub = random.choice(subreddits)
+                logger.info(f"Querying Reddit: r/{sub}")
+                resp = requests.get(f"https://www.reddit.com/r/{sub}/hot.json?limit=10", headers=headers, timeout=10)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    posts = data.get("data", {}).get("children", [])
+                    # Pick 2 random posts
+                    selected = random.sample(posts, min(2, len(posts)))
+                    for p in selected:
+                        pdata = p.get("data", {})
+                        title = pdata.get("title", "")
+                        selftext = pdata.get("selftext", "")
+                        text = f"Reddit Post (r/{sub}): {title}. Body: {selftext[:1000]}"
+                        summaries.append({
+                            "text": text,
+                            "keyword_id": None,
+                            "word": title,
+                            "source": "reddit"
+                        })
+                else:
+                    logger.warning(f"Reddit API returned {resp.status_code} for r/{sub} (Possibly rate limited)")
+        except Exception as e:
+            logger.error(f"Error fetching Reddit: {e}")
+        return summaries
+
+    def fetch_hackernews(self) -> List[Dict[str, Any]]:
+        import requests
+        summaries = []
+        try:
+            logger.info("Querying Hacker News Top Stories")
+            resp = requests.get("https://hacker-news.firebaseio.com/v0/topstories.json", timeout=10)
+            if resp.status_code == 200:
+                story_ids = resp.json()[:20] # top 20
+                if story_ids:
+                    s_id = random.choice(story_ids)
+                    s_resp = requests.get(f"https://hacker-news.firebaseio.com/v0/item/{s_id}.json", timeout=10)
+                    if s_resp.status_code == 200:
+                        s_data = s_resp.json()
+                        title = s_data.get("title", "")
+                        text = f"Hacker News Discussion: {title}."
+                        
+                        # Fetch top comments to get arguments
+                        kids = s_data.get("kids", [])[:3]
+                        for kid in kids:
+                            c_resp = requests.get(f"https://hacker-news.firebaseio.com/v0/item/{kid}.json", timeout=5)
+                            if c_resp.status_code == 200:
+                                c_data = c_resp.json()
+                                c_text = c_data.get("text", "")
+                                if c_text:
+                                    text += f" Comment: {c_text}"
+                                    
+                        # Strip html tags slightly
+                        import re
+                        text = re.sub('<[^<]+?>', '', text)
+                        
+                        summaries.append({
+                            "text": text,
+                            "keyword_id": None,
+                            "word": title,
+                            "source": "hackernews"
+                        })
+        except Exception as e:
+            logger.error(f"Error fetching Hacker News: {e}")
+        return summaries
+
     def generate_and_store_topics(self) -> int:
         """
-        Runs the research cycle: 
-        1. Check for UI target keywords (prioritize) or fallback to Wikipedia
-        2. Route keywords to Wikipedia or ArXiv
-        3. Prompt LLM for JSON Topic
-        4. Check Diversity (DB + Chroma)
-        5. Store in DB
+        Runs the research cycle using dynamic DB sources.
         """
-        items = self._get_search_items(num_results=3)
+        import datetime
         
-        # Route items to different sources (50/50 split)
-        wiki_items = []
-        arxiv_items = []
+        # 1. Fetch available sources that are OFF cooldown
+        all_sources = self.db.get_knowledge_sources(active_only=True)
+        available_sources = []
+        now = datetime.datetime.now()
         
-        for item in items:
-            if random.random() < 0.50:
-                arxiv_items.append(item)
-            else:
-                wiki_items.append(item)
+        for src in all_sources:
+            last_fetched = src.get("last_fetched_at")
+            cooldown = src.get("cooldown_minutes", 60)
+            
+            if not last_fetched:
+                available_sources.append(src)
+                continue
                 
-        abstracts_data = []
+            try:
+                lf_dt = datetime.datetime.strptime(last_fetched, "%Y-%m-%d %H:%M:%S")
+                if (now - lf_dt).total_seconds() / 60 >= cooldown:
+                    available_sources.append(src)
+                else:
+                    logger.debug(f"Source '{src['name']}' is on cooldown.")
+            except Exception:
+                available_sources.append(src) # Unparsable, let's just use it
+                
+        if not available_sources:
+            logger.warning("No Knowledge Sources available (all on cooldown or inactive). Falling back to basic Wikipedia Search.")
+            # Create a mock source to force fallback
+            available_sources = [{"id": 0, "source_type": "wikipedia_search", "config": "{}"}]
+            
+        # 2. Pick a random source to use for this research cycle
+        selected_source = random.choice(available_sources)
+        stype = selected_source["source_type"]
+        sconfig = selected_source.get("config", "{}")
+        s_id = selected_source.get("id", 0)
         
-        # Fetch ArXiv
-        if arxiv_items:
-            arxiv_results = self.fetch_arxiv_summaries(arxiv_items)
-            abstracts_data.extend(arxiv_results)
+        logger.info(f"🎯 Research cycle selected knowledge source: {stype.upper()}")
+        
+        if s_id > 0:
+            self.db.touch_knowledge_source(s_id)
             
-            # Graceful Fallback: If ArXiv found nothing for a keyword, send it to Wiki
-            successful_arxiv_words = {res["word"] for res in arxiv_results}
-            for item in arxiv_items:
-                if item["word"] not in successful_arxiv_words:
-                    logger.info(f"Fallback: Sending '{item['word']}' to Wikipedia since ArXiv found nothing.")
-                    wiki_items.append(item)
-                    
-        # Fetch Wiki
-        if wiki_items:
-            wiki_results = self.fetch_wikipedia_summaries(wiki_items)
-            abstracts_data.extend(wiki_results)
-            
+        abstracts_data = []
+
+        # 3. Route to specific fetcher based on source type
+        if stype == "wikipedia_random":
+            abstracts_data = self.fetch_wikipedia_random()
+        elif stype == "rss":
+            abstracts_data = self.fetch_rss_feeds(sconfig)
+        elif stype == "reddit":
+            abstracts_data = self.fetch_reddit(sconfig)
+        elif stype == "hackernews":
+            abstracts_data = self.fetch_hackernews()
+        else: # wikipedia_search or arxiv need keywords
+            items = self._get_search_items(num_results=3)
+            if stype == "arxiv":
+                abstracts_data = self.fetch_arxiv_summaries(items)
+                if not abstracts_data:
+                    logger.info("ArXiv yielded nothing. Falling back to Wiki Search.")
+                    abstracts_data = self.fetch_wikipedia_summaries(items)
+            else:
+                abstracts_data = self.fetch_wikipedia_summaries(items)
+
         inserted_count = 0
         
         for data in abstracts_data:
             abstract = data["text"]
-            kw_id = data["keyword_id"]
+            kw_id = data.get("keyword_id")
             
-            # Check if the raw abstract itself is totally duplicate in vector db
-            if not self.db.is_topic_novel(abstract, threshold=0.70): # higher threshold for raw text
-                logger.info("Wiki topic similar to existing knowledge base, skipping generation.")
+            if not self.db.is_topic_novel(abstract, threshold=0.70):
+                logger.info(f"{stype} topic similar to existing knowledge base, skipping generation.")
                 continue
                 
-            prompt = f"Based on this informational excerpt, generate a highly engaging, thought-provoking conversation topic for an empathetic AI to discuss with a human.\n\nExcerpt:\n{abstract}"
+            prompt = f"Based on this informational excerpt from {stype}, generate a highly engaging, thought-provoking conversation topic for an empathetic AI to discuss with a human.\n\nExcerpt:\n{abstract}"
             
             try:
                 result_wrapper = self.llm.generate(prompt=prompt, system_message=RESEARCHER_SYSTEM_PROMPT)
                 result_json = result_wrapper.get("data", {})
                 usage = result_wrapper.get("usage", {})
 
-                # Log cost for research
                 if usage:
                     self.db.log_cost(
                         model=usage.get("model", "unknown"),
@@ -252,23 +390,19 @@ class ResearchAgent:
                         completion_tokens=usage.get("completion_tokens", 0)
                     )
                 
-                # Check required keys
                 required_keys = ["topic_title", "topic_description"]
                 if not all(k in result_json for k in required_keys):
                     logger.warning(f"LLM returned invalid Research JSON missing keys: {result_json}")
                     continue
                 
-                # Insert into database (this will also do the strict embedding/sha check)
                 row_id = self.db.insert_seed_topic(topic_data=result_json, raw_text_for_embedding=abstract)
                 if row_id:
                     inserted_count += 1
-                    # Phase 8: Target Keywords are no longer deactivated automatically here.
-                    # They remain ACTIVE for continuous deep research until the week expires or manual deletion.
                     if kw_id is not None:
-                        logger.info(f"✅ Topic generated for continuous target keyword ID {kw_id}.")
+                        logger.info(f"✅ Topic generated for target keyword ID {kw_id}.")
                     
             except Exception as e:
                 logger.error(f"Error during research generation for abstract: {e}")
                 
-        logger.info(f"Research cycle completed. Inserted {inserted_count} new novel topics.")
+        logger.info(f"Research cycle completed using '{stype}'. Inserted {inserted_count} new novel topics.")
         return inserted_count

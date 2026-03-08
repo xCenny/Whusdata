@@ -47,7 +47,7 @@ st.sidebar.image("https://img.icons8.com/nolan/64/artificial-intelligence.png", 
 st.sidebar.title("🧠 Whusdata Pipeline")
 page = st.sidebar.radio(
     "Navigate",
-    ["📊 Dashboard", "📈 Drift Monitor", "💬 Conversations", "🎯 Weekly Planner", "⚙️ Pipeline Control", "🤖 Models & Prices", "🔑 API Keys", "📥 Export Dataset"],
+    ["📊 Dashboard", "📈 Drift Monitor", "💬 Conversations", "🎯 Weekly Planner", "⚙️ Pipeline Control", "🤖 Models & Prices", "🔑 API Keys", "📚 Knowledge Sources", "📥 Export Dataset"],
     label_visibility="collapsed"
 )
 pipeline_status = db.get_setting("pipeline_status") or "running"
@@ -471,6 +471,94 @@ elif page == "🔑 API Keys":
                 
         if not has_error:
             st.success("✅ API Keys successfully saved! (Changes take effect on next generation)")
+            st.rerun()
+
+# ═══════════════════════════════════════════════
+# 📚 KNOWLEDGE SOURCES
+# ═══════════════════════════════════════════════
+elif page == "📚 Knowledge Sources":
+    st.title("📚 Knowledge Sources")
+    st.caption("Manage where the Research Agent pulls its seed data from.")
+    
+    st.info("💡 **Tip:** Use `wikipedia_random` for chaotic variety, `rss` for news, `reddit` for trends, and `hackernews` for debates. Set `config` as valid JSON.")
+
+    sources = db.get_knowledge_sources()
+    df = pd.DataFrame(sources)
+    
+    if not df.empty:
+        # Reorder for clarity
+        df = df[["id", "is_active", "name", "source_type", "cooldown_minutes", "config", "last_fetched_at"]]
+        
+    edited_df = st.data_editor(
+        df,
+        num_rows="dynamic",
+        use_container_width=True,
+        column_config={
+            "id": st.column_config.NumberColumn(disabled=True),
+            "is_active": st.column_config.CheckboxColumn("Active?"),
+            "name": st.column_config.TextColumn("Source Name", required=True),
+            "source_type": st.column_config.SelectboxColumn("Type", options=["wikipedia_search", "wikipedia_random", "rss", "reddit", "arxiv", "hackernews"], required=True),
+            "cooldown_minutes": st.column_config.NumberColumn("Cooldown (Min)", min_value=0),
+            "config": st.column_config.TextColumn("Config (JSON)"),
+            "last_fetched_at": st.column_config.DatetimeColumn("Last Fetched", disabled=True),
+        },
+        hide_index=True
+    )
+
+    if st.button("💾 Save Knowledge Sources", type="primary"):
+        all_ids = set(df["id"].dropna()) if not df.empty else set()
+        current_ids = set()
+        
+        has_error = False
+        
+        for index, row in edited_df.iterrows():
+            row_dict = row.to_dict()
+            r_id = row_dict.pop("id", None)
+            
+            if not row_dict.get("name") or not row_dict.get("source_type"):
+                continue
+                
+            row_dict["is_active"] = 1 if row_dict.get("is_active") else 0
+            
+            # Simple JSON validation
+            import json
+            try:
+                if row_dict.get("config"):
+                    json.loads(row_dict["config"])
+                else:
+                    row_dict["config"] = "{}"
+            except Exception:
+                st.error(f"Invalid JSON in Config for '{row_dict['name']}'")
+                has_error = True
+                continue
+            
+            # last_fetched_at cannot be updated by user directly reliably via UI edit, ignore it for update
+            row_dict.pop("last_fetched_at", None)
+
+            if pd.isna(r_id):
+                # INSERT
+                try:
+                    with db.get_connection() as conn:
+                        fields = ", ".join(row_dict.keys())
+                        placeholders = ", ".join(["?" for _ in row_dict])
+                        conn.execute(f"INSERT INTO knowledge_sources ({fields}) VALUES ({placeholders})", list(row_dict.values()))
+                        conn.commit()
+                except Exception as e:
+                    has_error = True
+                    st.error(f"Error inserting source '{row_dict['name']}': {e}")
+            else:
+                r_id = int(r_id)
+                current_ids.add(r_id)
+                db.update_knowledge_source(r_id, row_dict)
+                
+        # DELETE missing
+        for d in (all_ids - current_ids):
+            with db.get_connection() as conn:
+                conn.execute("DELETE FROM knowledge_sources WHERE id = ?", (d,))
+                conn.commit()
+                
+        if not has_error:
+            st.success("✅ Knowledge Sources saved successfully!")
             st.rerun()
 
 # ═══════════════════════════════════════════════

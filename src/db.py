@@ -147,6 +147,17 @@ class DatabaseManager:
                     );
                 """)
                 cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS knowledge_sources (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT UNIQUE,
+                        source_type TEXT,
+                        config TEXT,
+                        last_fetched_at DATETIME,
+                        cooldown_minutes INTEGER DEFAULT 60,
+                        is_active BOOLEAN DEFAULT 1
+                    );
+                """)
+                cursor.execute("""
                     CREATE TABLE IF NOT EXISTS llm_providers (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         name TEXT UNIQUE,
@@ -182,11 +193,51 @@ class DatabaseManager:
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, d)
                     conn.commit()
+                    conn.commit()
+
+                # Check if knowledge_sources is empty
+                c_ks = cursor.execute("SELECT COUNT(*) FROM knowledge_sources").fetchone()[0]
+                if c_ks == 0:
+                    import json
+                    ks_defaults = [
+                        ("Wikipedia Random", "wikipedia_random", "{}", 0, 1),
+                        ("Reddit Tech", "reddit", json.dumps({"subreddits": ["Futurology", "MachineLearning", "AskScience"]}), 60, 1),
+                        ("Hacker News Top", "hackernews", "{}", 60, 1),
+                        ("Popular RSS Feeds", "rss", json.dumps({"feeds": ["http://rss.cnn.com/rss/edition_technology.rss", "https://feeds.bbci.co.uk/news/technology/rss.xml"]}), 120, 1)
+                    ]
+                    for ks in ks_defaults:
+                        cursor.execute("""
+                            INSERT INTO knowledge_sources (name, source_type, config, cooldown_minutes, is_active)
+                            VALUES (?, ?, ?, ?, ?)
+                        """, ks)
+                    conn.commit()
 
                 logger.info("Database initialized successfully with WAL mode.")
         except Exception as e:
             logger.error(f"Error initializing database: {e}")
             raise
+
+    # ── Knowledge Sources Helpers ──
+    def get_knowledge_sources(self, active_only: bool = False) -> List[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            query = "SELECT * FROM knowledge_sources"
+            if active_only:
+                query += " WHERE is_active = 1"
+            rows = conn.execute(query).fetchall()
+            return [dict(r) for r in rows]
+
+    def update_knowledge_source(self, s_id: int, updates: Dict[str, Any]):
+        fields = ", ".join([f"{k} = ?" for k in updates.keys()])
+        values = list(updates.values()) + [s_id]
+        with self.get_connection() as conn:
+            conn.execute(f"UPDATE knowledge_sources SET {fields} WHERE id = ?", values)
+            conn.commit()
+
+    def touch_knowledge_source(self, s_id: int):
+        """Updates last_fetched_at to CURRENT_TIMESTAMP."""
+        with self.get_connection() as conn:
+            conn.execute("UPDATE knowledge_sources SET last_fetched_at = CURRENT_TIMESTAMP WHERE id = ?", (s_id,))
+            conn.commit()
 
     # ── API Keys Helpers ──
     def get_api_keys(self) -> List[Dict[str, Any]]:
