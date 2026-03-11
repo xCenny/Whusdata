@@ -295,7 +295,7 @@ class PipelineGraph:
             
             return {
                 "critic_data": critic_data,
-                "metadata": result.get("verified_metadata", state.get("metadata")),
+                "metadata": result.get("verified_metadata", state.get("metadata")), # Legacy fallback if needed
                 "status": "success" if critic_status == "PASS" else "needs_reflection",
                 "usage_log": state.get("usage_log", []) + [usage]
             }

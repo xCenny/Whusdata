@@ -584,21 +584,68 @@ elif page == "📥 Export Dataset":
     domain_val = domain_sel.strip() if domain_sel.strip() else None
     diff_val = diff_sel if diff_sel != "All" else None
     
-    if st.button("📦 Generate Export", use_container_width=True):
-        with st.spinner("Exporting..."):
-            data = db.export_jsonl(tier_filter=tier_val, domain_filter=domain_val, difficulty_filter=diff_val)
-            if data:
-                jsonl = "\n".join([json.dumps(d, ensure_ascii=False) for d in data])
-                st.download_button(
-                    label=f"⬇️ Download {len(data)} conversations (.jsonl)",
-                    data=jsonl,
-                    file_name=f"whusdata_sft_{datetime.now().strftime('%Y%m%d')}.jsonl",
-                    mime="application/jsonl",
-                    use_container_width=True
-                )
-                st.success(f"{len(data)} conversations ready!")
-                st.subheader("Preview (First 3)")
-                for entry in data[:3]:
-                    st.json(entry)
+    st.markdown("---")
+    st.subheader("🚀 Push to Hugging Face")
+    st.info("Directly upload the filtered dataset to your Hugging Face account. The system will create the dataset if it doesn't exist.")
+    
+    hf_token = st.text_input("HF Write Token (hf_...)", type="password")
+    hf_repo = st.text_input("Dataset Repo Name (e.g. username/whusdata-sft)", placeholder="username/dataset_name")
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("📦 Generate JSONL Download", use_container_width=True):
+            with st.spinner("Exporting..."):
+                data = db.export_jsonl(tier_filter=tier_val, domain_filter=domain_val, difficulty_filter=diff_val)
+                if data:
+                    jsonl = "\n".join([json.dumps(d, ensure_ascii=False) for d in data])
+                    st.download_button(
+                        label=f"⬇️ Download {len(data)} conversations (.jsonl)",
+                        data=jsonl,
+                        file_name=f"whusdata_sft_{datetime.now().strftime('%Y%m%d')}.jsonl",
+                        mime="application/jsonl",
+                        use_container_width=True
+                    )
+                    st.success(f"{len(data)} conversations ready!")
+                else:
+                    st.warning("No matching conversations found.")
+                    
+    with c2:
+        if st.button("☁️ Push to HF Hub", use_container_width=True):
+            if not hf_token or not hf_repo:
+                st.error("Please provide both HF Token and Repo Name.")
             else:
-                st.warning("No matching conversations found.")
+                with st.spinner("Exporting & Pushing to Hugging Face..."):
+                    data = db.export_jsonl(tier_filter=tier_val, domain_filter=domain_val, difficulty_filter=diff_val)
+                    if not data:
+                        st.warning("No matching conversations found.")
+                    else:
+                        try:
+                            from huggingface_hub import HfApi
+                            import tempfile
+                            import os
+                            
+                            api = HfApi(token=hf_token.strip())
+                            
+                            # Ensure repo exists
+                            api.create_repo(repo_id=hf_repo.strip(), repo_type="dataset", exist_ok=True)
+                            
+                            jsonl_data = "\n".join([json.dumps(d, ensure_ascii=False) for d in data])
+                            
+                            with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".jsonl", encoding="utf-8") as f:
+                                f.write(jsonl_data)
+                                temp_path = f.name
+                                
+                            api.upload_file(
+                                path_or_fileobj=temp_path,
+                                path_in_repo=f"train_{datetime.now().strftime('%Y%m%d')}.jsonl",
+                                repo_id=hf_repo.strip(),
+                                repo_type="dataset"
+                            )
+                            os.unlink(temp_path)
+                            
+                            st.success(f"✅ Successfully pushed {len(data)} rows to {hf_repo}!")
+                            st.balloons()
+                        except ImportError:
+                            st.error("huggingface_hub is not installed! Run `pip install huggingface_hub`")
+                        except Exception as e:
+                            st.error(f"Push failed: {e}")

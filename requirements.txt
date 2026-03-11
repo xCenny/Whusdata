@@ -16,3 +16,4 @@ streamlit
 pandas
 feedparser
 requests
+huggingface_hub

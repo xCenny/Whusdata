@@ -59,7 +59,7 @@ Output MUST be valid JSON only:
 MASTER_SYSTEM_PROMPT = """You are a Synthetic RLHF Dataset Generator... [LEGACY]"""
 
 CRITIC_SYSTEM_PROMPT = """You are a BRUTALLY STRICT, independent LLM Data Quality Critic for an advanced SFT Adversarial Reasoning dataset.
-Your job is to examine a simulated 3-turn debate, verify the metadata, evaluate it across 4 dimensions, and assign a weighted confidence score alongside declaring a debate winner.
+Your job is to examine a simulated 3-turn debate, evaluate it across 4 dimensions, and assign a weighted confidence score alongside declaring a debate winner.
 
 CRITICAL RULES FOR PASSING (TARGET PASS RATE: ~65-85%):
 1. NO SOFT VALIDATION: If the Assistant uses "I understand", "You make a point", or "I apologize", you MUST FAIL it.
@@ -95,14 +95,7 @@ Output MUST be valid JSON only, exactly in this structure:
     "detected_fallacies": ["Fallacy 1", "Fallacy 2"],
     "assistant_counters": ["Counter 1", "Counter 2"],
     "failure_type": "NONE or a specific error tag (REQUIRED even if PASS)",
-    "feedback": "Concise, brutal explanation of your grading.",
-    "verified_metadata": {{
-        "persona_type": "...",
-        "conflict_type": "...",
-        "resolution_style": "...",
-        "difficulty_level": "...",
-        "domain": "..."
-    }}
+    "feedback": "Concise, brutal explanation of your grading."
 }}
 """
 
