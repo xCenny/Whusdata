@@ -87,6 +87,27 @@ class DatabaseManager:
                     cursor.execute("ALTER TABLE generations ADD COLUMN factual_score REAL DEFAULT 0.0;")
                 except sqlite3.OperationalError:
                     pass
+                try:
+                    cursor.execute("ALTER TABLE generations ADD COLUMN is_augmented BOOLEAN DEFAULT 0;")
+                except sqlite3.OperationalError:
+                    pass
+                try:
+                    cursor.execute("ALTER TABLE generations ADD COLUMN original_id INTEGER;")
+                except sqlite3.OperationalError:
+                    pass
+
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS hf_export_targets (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT UNIQUE,
+                        repo_id TEXT,
+                        hf_token TEXT,
+                        tier_filter INTEGER,
+                        domain_filter TEXT,
+                        difficulty_filter TEXT,
+                        is_active BOOLEAN DEFAULT 1
+                    );
+                """)
                     
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS cost_log (
@@ -435,6 +456,42 @@ class DatabaseManager:
                 params.append(difficulty_filter)
             query += " ORDER BY timestamp ASC"
             rows = conn.execute(query, params).fetchall()
+
+    def get_hf_targets(self) -> List[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            rows = conn.execute("SELECT * FROM hf_export_targets ORDER BY id ASC").fetchall()
+            return [dict(r) for r in rows]
+
+    def insert_hf_target(self, data: Dict[str, Any]):
+        fields = ", ".join(data.keys())
+        placeholders = ", ".join(["?" for _ in data])
+        values = list(data.values())
+        with self.get_connection() as conn:
+            conn.execute(f"INSERT INTO hf_export_targets ({fields}) VALUES ({placeholders})", values)
+            conn.commit()
+
+    def update_hf_target(self, t_id: int, updates: Dict[str, Any]):
+        fields = ", ".join([f"{k} = ?" for k in updates.keys()])
+        values = list(updates.values()) + [t_id]
+        with self.get_connection() as conn:
+            conn.execute(f"UPDATE hf_export_targets SET {fields} WHERE id = ?", values)
+            conn.commit()
+
+    def delete_hf_target(self, t_id: int):
+        with self.get_connection() as conn:
+            conn.execute("DELETE FROM hf_export_targets WHERE id = ?", (t_id,))
+            conn.commit()
+
+    def get_generations_for_augmentation(self, limit: int = 10, tier: int = 1) -> List[Dict[str, Any]]:
+        """Fetch base un-augmented data that hasn't been overly augmented."""
+        # Simple fetch for now
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM generations WHERE critic_status = 'PASS' AND tier = ? "
+                "AND is_augmented = 0 ORDER BY RANDOM() LIMIT ?",
+                (tier, limit)
+            ).fetchall()
+            return [dict(r) for r in rows]
             results = []
             for r in rows:
                 r_dict = dict(r)
@@ -480,7 +537,9 @@ class DatabaseManager:
         metadata: Dict[str, Any],
         critic_data: Dict[str, Any],
         tier: int = 0,
-        mode: str = "production"
+        mode: str = "production",
+        is_augmented: bool = False,
+        original_id: int = None
     ) -> Optional[int]:
         """Inserts a multi-turn generation with tier and mode classification."""
         convo_json = json.dumps(conversation_history, ensure_ascii=False)
@@ -496,9 +555,9 @@ class DatabaseManager:
                         tier, critic_status, critic_confidence, memory_consistency_score,
                         logic_score, winner, failure_type,
                         generation_mode, model_used, critic_model_used, sha256_hash,
-                        critic_analytics, factual_score
+                        critic_analytics, factual_score, is_augmented, original_id
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     topic,
                     convo_json,
@@ -519,7 +578,9 @@ class DatabaseManager:
                     critic_data.get("model_used", "unknown"),
                     sha256_hash,
                     json.dumps(critic_data.get("analytics", {}), ensure_ascii=False),
-                    critic_data.get("factual_score", 0.0)
+                    critic_data.get("factual_score", 0.0),
+                    1 if is_augmented else 0,
+                    original_id
                 ))
                 row_id = cursor.lastrowid
                 conn.commit()

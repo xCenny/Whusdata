@@ -47,7 +47,7 @@ st.sidebar.image("https://img.icons8.com/nolan/64/artificial-intelligence.png", 
 st.sidebar.title("🧠 Whusdata Pipeline")
 page = st.sidebar.radio(
     "Navigate",
-    ["📊 Dashboard", "📈 Drift Monitor", "💬 Conversations", "🎯 Weekly Planner", "⚙️ Pipeline Control", "🤖 Models & Prices", "🔑 API Keys", "📚 Knowledge Sources", "📥 Export Dataset"],
+    ["📊 Dashboard", "📈 Drift Monitor", "💬 Conversations", "🎯 Weekly Planner", "⚙️ Pipeline Control", "🤖 Models & Prices", "🔑 API Keys", "📚 Knowledge Sources", "🧬 Data Augmentation", "📥 Export Dataset"],
     label_visibility="collapsed"
 )
 pipeline_status = db.get_setting("pipeline_status") or "running"
@@ -562,6 +562,52 @@ elif page == "📚 Knowledge Sources":
             st.rerun()
 
 # ═══════════════════════════════════════════════
+# 🧬 DATA AUGMENTATION
+# ═══════════════════════════════════════════════
+elif page == "🧬 Data Augmentation":
+    st.title("🧬 Data Augmentation")
+    st.caption("Multiply your verified Tier 1 data by paraphrasing dialogues in different styles.")
+    
+    st.info("💡 **How it works:** Taking a 100% verified Gold conversation and rewriting it in different styles (e.g., Slang, Academic) via a cheaper model is up to 10x cheaper than starting from scratch and passing it through the Strict Critic.")
+    
+    with st.form("aug_form"):
+        sc1, sc2, sc3 = st.columns(3)
+        tier_to_augment = sc1.selectbox("Target Tier source (e.g. Tier 1)", [1, 2, 3])
+        num_seeds = sc2.number_input("How many conversations to parse?", min_value=1, max_value=100, value=10)
+        multiplier = sc3.slider("Multiplier (Variations per conov)", min_value=1, max_value=5, value=3)
+        
+        all_providers = db.get_all_providers()
+        available_models = [p["name"] for p in all_providers] if all_providers else ["gemini-flash"]
+        model_choice = st.selectbox("Augmentation Model (Cheap/Fast recommended)", available_models)
+        
+        st.markdown("⚠️ *Process runs synchronously and may take a while based on batch size.*")
+        
+        if st.form_submit_button("🚀 Start Augmentation Process", use_container_width=True):
+            with st.spinner(f"Fetching {num_seeds} Tier {tier_to_augment} un-augmented conversations..."):
+                from src.augmenter import DataAugmenter
+                from src.llm_client import LLMClient
+                
+                llm = LLMClient()
+                augmenter = DataAugmenter(db, llm)
+                
+                targets = db.get_generations_for_augmentation(limit=int(num_seeds), tier=int(tier_to_augment))
+                
+                if not targets:
+                    st.warning("No eligible un-augmented conversations found for that tier.")
+                else:
+                    progress_text = "Augmenting in progress. Please wait."
+                    my_bar = st.progress(0, text=progress_text)
+                    
+                    total_success = 0
+                    for i, t in enumerate(targets):
+                        res_count = augmenter.augment_generation(t, int(multiplier), model_choice)
+                        total_success += res_count
+                        my_bar.progress((i + 1) / len(targets), text=f"Processing {i+1}/{len(targets)}... (Generated {total_success} new rows)")
+                    
+                    st.success(f"✅ Augmentation complete! Generated {total_success} brand new variations from {len(targets)} base conversations.")
+                    st.balloons()
+
+# ═══════════════════════════════════════════════
 # 📥 EXPORT DATASET
 # ═══════════════════════════════════════════════
 elif page == "📥 Export Dataset":
@@ -585,52 +631,101 @@ elif page == "📥 Export Dataset":
     diff_val = diff_sel if diff_sel != "All" else None
     
     st.markdown("---")
-    st.subheader("🚀 Push to Hugging Face")
-    st.info("Directly upload the filtered dataset to your Hugging Face account. The system will create the dataset if it doesn't exist.")
+    st.subheader("🚀 Multi-Repo Hugging Face Push")
+    st.info("Directly upload data to multiple Hugging Face datasets based on filters.")
     
-    hf_token = st.text_input("HF Write Token (hf_...)", type="password")
-    hf_repo = st.text_input("Dataset Repo Name (e.g. username/whusdata-sft)", placeholder="username/dataset_name")
+    # HF Targets Manager
+    st.markdown("#### ⚙️ Configure Targets")
+    hf_targets = db.get_hf_targets()
+    df_hf = pd.DataFrame(hf_targets)
+    if not df_hf.empty:
+        df_hf = df_hf[["id", "is_active", "name", "repo_id", "hf_token", "tier_filter", "domain_filter", "difficulty_filter"]]
+        
+    edited_hf = st.data_editor(
+        df_hf if not df_hf.empty else pd.DataFrame(columns=["id", "is_active", "name", "repo_id", "hf_token", "tier_filter", "domain_filter", "difficulty_filter"]),
+        num_rows="dynamic",
+        use_container_width=True,
+        column_config={
+            "id": None,
+            "is_active": st.column_config.CheckboxColumn("Active?", default=True),
+            "name": st.column_config.TextColumn("Target Label", required=True),
+            "repo_id": st.column_config.TextColumn("Repo (user/dataset)", required=True),
+            "hf_token": st.column_config.TextColumn("HF Token (hf_...)", required=True),
+            "tier_filter": st.column_config.NumberColumn("Tier (1,2,3 or Empty)"),
+            "domain_filter": st.column_config.TextColumn("Domain (or Empty)"),
+            "difficulty_filter": st.column_config.SelectboxColumn("Difficulty", options=["Beginner", "Intermediate", "Advanced"])
+        }
+    )
     
+    if st.button("💾 Save Export Targets", type="primary"):
+        all_ids = set([t["id"] for t in hf_targets])
+        current_ids = set()
+        for _, row in edited_hf.iterrows():
+            row_dict = row.to_dict()
+            r_id = row_dict.pop("id", None)
+            for k, v in row_dict.items():
+                if pd.isna(v): row_dict[k] = None
+            if not row_dict.get("name") or not row_dict.get("repo_id") or not row_dict.get("hf_token"):
+                continue
+            row_dict["is_active"] = 1 if row_dict.get("is_active") else 0
+                
+            if pd.isna(r_id):
+                db.insert_hf_target(row_dict)
+            else:
+                r_id = int(r_id)
+                current_ids.add(r_id)
+                db.update_hf_target(r_id, row_dict)
+                
+        for d in (all_ids - current_ids):
+            db.delete_hf_target(d)
+        st.success("Target configurations saved!")
+        st.rerun()
+
+    st.markdown("#### 📤 Push Actions")
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("📦 Generate JSONL Download", use_container_width=True):
+        if st.button("📦 Gen Temporary JSONL (Current Page Filters)", use_container_width=True):
             with st.spinner("Exporting..."):
                 data = db.export_jsonl(tier_filter=tier_val, domain_filter=domain_val, difficulty_filter=diff_val)
                 if data:
                     jsonl = "\n".join([json.dumps(d, ensure_ascii=False) for d in data])
                     st.download_button(
-                        label=f"⬇️ Download {len(data)} conversations (.jsonl)",
+                        label=f"⬇️ Download {len(data)} rows (.jsonl)",
                         data=jsonl,
-                        file_name=f"whusdata_sft_{datetime.now().strftime('%Y%m%d')}.jsonl",
+                        file_name=f"whusdata_temp_{datetime.now().strftime('%Y%m%d')}.jsonl",
                         mime="application/jsonl",
                         use_container_width=True
                     )
-                    st.success(f"{len(data)} conversations ready!")
                 else:
-                    st.warning("No matching conversations found.")
+                    st.warning("No data found.")
                     
     with c2:
-        if st.button("☁️ Push to HF Hub", use_container_width=True):
-            if not hf_token or not hf_repo:
-                st.error("Please provide both HF Token and Repo Name.")
+        if st.button("☁️ Push to ALL Active Targets", use_container_width=True):
+            active_targets = [t for t in db.get_hf_targets() if t.get("is_active")]
+            if not active_targets:
+                st.warning("No active targets found.")
             else:
-                with st.spinner("Exporting & Pushing to Hugging Face..."):
-                    data = db.export_jsonl(tier_filter=tier_val, domain_filter=domain_val, difficulty_filter=diff_val)
-                    if not data:
-                        st.warning("No matching conversations found.")
-                    else:
-                        try:
-                            from huggingface_hub import HfApi
-                            import tempfile
-                            import os
+                try:
+                    from huggingface_hub import HfApi
+                    import tempfile
+                    import os
+                    
+                    for t in active_targets:
+                        with st.spinner(f"Pushing to {t['repo_id']}..."):
+                            api = HfApi(token=t['hf_token'].strip())
+                            api.create_repo(repo_id=t['repo_id'].strip(), repo_type="dataset", exist_ok=True)
                             
-                            api = HfApi(token=hf_token.strip())
+                            push_tier = int(t['tier_filter']) if t.get('tier_filter') else None
+                            push_domain = str(t['domain_filter']).strip() if t.get('domain_filter') else None
+                            push_diff = str(t['difficulty_filter']).strip() if t.get('difficulty_filter') else None
                             
-                            # Ensure repo exists
-                            api.create_repo(repo_id=hf_repo.strip(), repo_type="dataset", exist_ok=True)
+                            t_data = db.export_jsonl(tier_filter=push_tier, domain_filter=push_domain, difficulty_filter=push_diff)
                             
-                            jsonl_data = "\n".join([json.dumps(d, ensure_ascii=False) for d in data])
-                            
+                            if not t_data:
+                                st.warning(f"No data matched for {t['name']}. Skipping.")
+                                continue
+                                
+                            jsonl_data = "\n".join([json.dumps(d, ensure_ascii=False) for d in t_data])
                             with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".jsonl", encoding="utf-8") as f:
                                 f.write(jsonl_data)
                                 temp_path = f.name
@@ -638,14 +733,11 @@ elif page == "📥 Export Dataset":
                             api.upload_file(
                                 path_or_fileobj=temp_path,
                                 path_in_repo=f"train_{datetime.now().strftime('%Y%m%d')}.jsonl",
-                                repo_id=hf_repo.strip(),
+                                repo_id=t['repo_id'].strip(),
                                 repo_type="dataset"
                             )
                             os.unlink(temp_path)
-                            
-                            st.success(f"✅ Successfully pushed {len(data)} rows to {hf_repo}!")
-                            st.balloons()
-                        except ImportError:
-                            st.error("huggingface_hub is not installed! Run `pip install huggingface_hub`")
-                        except Exception as e:
-                            st.error(f"Push failed: {e}")
+                            st.success(f"✅ {len(t_data)} rows pushed to {t['repo_id']}")
+                    st.balloons()
+                except Exception as e:
+                    st.error(f"Push failed: {e}")

@@ -212,6 +212,7 @@ whusdata/
 - [x] Deep RLHF Analytics & Chain of Thought (Phase 12)
 - [x] Critic Token Cost Optimization (Removed metadata verify)
 - [x] HuggingFace Datasets oto-push (Tier 1)
+- [x] Synthetic Data Augmentation (Paraphrasing Multiplier) & Multi-Repo Export
 - [ ] Prompt A/B testing framework
 
 ---
