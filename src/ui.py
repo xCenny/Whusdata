@@ -6,33 +6,77 @@ from src.db import DatabaseManager
 
 # ── Page Config ──
 st.set_page_config(
-    page_title="Whusdata — Data Pipeline Dashboard",
-    page_icon="🧠",
+    page_title="Whusdata — Pipeline",
+    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ── Custom CSS ──
+# ── Minimalist CSS ──
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    /* Base */
     html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+    
+    /* Metric Cards — flat, clean, no gradients */
     .metric-card {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-        border: 1px solid #0f3460; border-radius: 16px; padding: 20px; text-align: center; color: #e0e0e0;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
+        padding: 20px 16px;
+        text-align: center;
+        transition: border-color 0.2s ease;
     }
-    .metric-card h2 { font-size: 2rem; font-weight: 700; margin: 0;
-        background: linear-gradient(90deg, #00d2ff, #3a7bd5);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .metric-card p { font-size: 0.8rem; color: #8892b0; margin: 4px 0 0 0; }
-    .tier-gold { border-left: 4px solid #FFD700; }
-    .tier-silver { border-left: 4px solid #C0C0C0; }
-    .tier-bronze { border-left: 4px solid #CD7F32; }
-    .pass-badge { background: #0d7377; color: #00ffd5; padding: 3px 10px; border-radius: 8px; font-weight: 600; font-size: 0.8rem; }
-    .fail-badge { background: #6b2737; color: #ff6b6b; padding: 3px 10px; border-radius: 8px; font-weight: 600; font-size: 0.8rem; }
-    div[data-testid="stSidebar"] { background: linear-gradient(180deg, #0a0a23 0%, #1a1a3e 100%); }
-    .convo-bubble-user { background: #1e3a5f; border-radius: 12px; padding: 12px 16px; margin: 6px 0; border-left: 3px solid #3a7bd5; }
-    .convo-bubble-assistant { background: #1a3a2a; border-radius: 12px; padding: 12px 16px; margin: 6px 0; border-left: 3px solid #00d2ff; }
+    .metric-card:hover { border-color: rgba(255,255,255,0.18); }
+    .metric-card h2 {
+        font-size: 1.8rem; font-weight: 700; margin: 0;
+        color: #e8eaed; letter-spacing: -0.02em;
+    }
+    .metric-card p { font-size: 0.75rem; color: #9aa0a6; margin: 6px 0 0 0; font-weight: 400; letter-spacing: 0.03em; text-transform: uppercase; }
+    
+    /* Tier accents — subtle left border */
+    .tier-gold { border-left: 3px solid #f5c542; }
+    .tier-silver { border-left: 3px solid #9e9e9e; }
+    .tier-bronze { border-left: 3px solid #bf8040; }
+    
+    /* Badges — minimal pill style */
+    .pass-badge { background: rgba(52,168,83,0.15); color: #81c995; padding: 2px 10px; border-radius: 100px; font-weight: 500; font-size: 0.75rem; }
+    .fail-badge { background: rgba(234,67,53,0.15); color: #f28b82; padding: 2px 10px; border-radius: 100px; font-weight: 500; font-size: 0.75rem; }
+    
+    /* Sidebar — clean dark */
+    div[data-testid="stSidebar"] { background: #0d1117; border-right: 1px solid rgba(255,255,255,0.06); }
+    div[data-testid="stSidebar"] .stRadio label { font-size: 0.85rem !important; letter-spacing: 0.01em; }
+    
+    /* Conversation bubbles — minimal */
+    .convo-bubble-user {
+        background: rgba(66,133,244,0.08);
+        border-radius: 10px; padding: 12px 16px; margin: 4px 0;
+        border-left: 2px solid rgba(66,133,244,0.4);
+        font-size: 0.9rem; line-height: 1.6;
+    }
+    .convo-bubble-assistant {
+        background: rgba(52,168,83,0.08);
+        border-radius: 10px; padding: 12px 16px; margin: 4px 0;
+        border-left: 2px solid rgba(52,168,83,0.4);
+        font-size: 0.9rem; line-height: 1.6;
+    }
+    
+    /* Reduce visual noise */
+    .stMarkdown hr { border-color: rgba(255,255,255,0.06) !important; margin: 1.5rem 0 !important; }
+    h1 { font-weight: 600 !important; letter-spacing: -0.03em !important; font-size: 1.6rem !important; }
+    h2, .stSubheader { font-weight: 500 !important; font-size: 1.1rem !important; color: #bdc1c6 !important; }
+    h3 { font-weight: 500 !important; font-size: 1rem !important; color: #9aa0a6 !important; }
+    
+    /* Buttons — clean outline style */
+    .stButton > button { border-radius: 8px !important; font-weight: 500 !important; font-size: 0.85rem !important; }
+    
+    /* Data editor — tighter */
+    .stDataFrame { font-size: 0.8rem !important; }
+    
+    /* Remove extra padding */
+    .block-container { padding-top: 2rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -43,8 +87,7 @@ def get_db():
 db = get_db()
 
 # ── Sidebar ──
-st.sidebar.image("https://img.icons8.com/nolan/64/artificial-intelligence.png", width=50)
-st.sidebar.title("🧠 Whusdata Pipeline")
+st.sidebar.markdown("#### ⚡ Whusdata")
 page = st.sidebar.radio(
     "Navigate",
     ["📊 Dashboard", "📈 Drift Monitor", "💬 Conversations", "🎯 Weekly Planner", "⚙️ Pipeline Control", "🤖 Models & Prices", "🔑 API Keys", "📚 Knowledge Sources", "🧬 Data Augmentation", "📥 Export Dataset"],
@@ -52,9 +95,10 @@ page = st.sidebar.radio(
 )
 pipeline_status = db.get_setting("pipeline_status") or "running"
 cal_mode = db.get_setting("calibration_mode") or "false"
-st.sidebar.markdown(f"**Pipeline:** {'🟢' if pipeline_status == 'running' else '🔴'} `{pipeline_status.upper()}`")
+ws_name = db.get_setting("current_dataset_name") or "default"
+st.sidebar.caption(f"{'🟢' if pipeline_status == 'running' else '🔴'} {pipeline_status.upper()} · 📂 `{ws_name}`")
 if cal_mode == "true":
-    st.sidebar.markdown("**Mode:** 🧪 `CALIBRATION`")
+    st.sidebar.caption("🧪 CALIBRATION MODE")
 st.sidebar.markdown("---")
 
 # ═══════════════════════════════════════════════
@@ -108,7 +152,7 @@ if page == "📊 Dashboard":
     token_chart_data = db.get_daily_token_usage_chart(days=14)
     if token_chart_data:
         df_tokens = pd.DataFrame(token_chart_data).set_index("date")
-        st.bar_chart(df_tokens["total_tokens"], color="#00d2ff")
+        st.bar_chart(df_tokens["total_tokens"], color="#5f9ea0")
     else:
         st.info("No token usage data recorded yet.")
         
