@@ -26,14 +26,29 @@ def get_random_persona() -> str:
     else: # 10% Absurd
         return random.choice(["Conspiracy Theorist", "Flat-Earther", "Sci-Fi Fanatic"])
 
-def get_length_directive() -> str:
-    r = random.random()
-    if r < 0.30:
-        return "SHORT (2-3 sentences max, strictly punchy and direct)"
-    elif r < 0.70:
-        return "MEDIUM (4-6 sentences, balanced counter-argument)"
-    else:
-        return "LONG (Comprehensive and detailed rebuttal)"
+def get_length_directive(turn: int) -> str:
+    """Sequenced length to guarantee tonal variety across turns."""
+    sequence = {
+        1: "MEDIUM (4-6 sentences, balanced counter-argument)",
+        2: "SHORT (2-3 sentences max, strictly punchy and direct)",
+        3: "LONG (Comprehensive and detailed rebuttal)",
+    }
+    if turn in sequence:
+        return sequence[turn]
+    # Turns 4+ alternate
+    return random.choice([
+        "SHORT (2-3 sentences max, strictly punchy and direct)",
+        "LONG (Comprehensive and detailed rebuttal)"
+    ])
+
+def format_history(history: list) -> str:
+    """Convert raw history list to clean readable text for LLM context."""
+    lines = []
+    for msg in history:
+        role = msg.get("role", "unknown").capitalize()
+        content = msg.get("content", "")
+        lines.append(f"{role}: {content}")
+    return "\n\n".join(lines)
 
 def get_user_tactic(turn: int) -> str:
     if turn == 1:
@@ -52,9 +67,9 @@ def get_user_tactic(turn: int) -> str:
         ])
     elif turn == 4:
         return random.choice([
-            "Employ a False Dilemma ('So you are saying it is either 100% perfect or completely useless?').",
+            "Twist the Assistant's argument into a ridiculous extreme to mock it. Do NOT frame it as a genuine question — frame it as an angry accusation. (e.g., 'Oh so now you want us to worship every moth on the planet? Give me a break.').",
             "Move the Goalposts: Completely change your standard of proof now that the AI has answered your previous point.",
-            "Feign ignorance and pretend you don't understand the AI's core explanation."
+            "Feign ignorance and pretend you don't understand the AI's core explanation, then use that confusion to claim the AI's argument is too convoluted to be true."
         ])
     else:  # Turn 5 and 6
         return random.choice([
@@ -135,7 +150,8 @@ class PipelineGraph:
         logger.info(f"Graph: Generating User Turn {turn} (Persona: {persona}) | Tactic: {tactic[:40]}...")
         
         system_msg = USER_TURN_PROMPT.format(persona_type=persona, user_tactic=tactic)
-        prompt = f"Topic: {state['topic']}\n\nConversation so far:\n{history}\n\nGenerate your turn:"
+        formatted = format_history(history)
+        prompt = f"Topic: {state['topic']}\n\nConversation so far:\n{formatted}\n\nGenerate your turn:"
         
         try:
             # User turn is a simple string, generate returns {"data": parsed_json, "usage": ...}
@@ -165,12 +181,13 @@ class PipelineGraph:
     def node_assistant_turn(self, state: GraphState) -> Dict[str, Any]:
         turn = state.get("current_turn", 1)
         history = state.get("conversation_history", [])
-        length_directive = get_length_directive()
+        length_directive = get_length_directive(turn)
         
         logger.info(f"Graph: Generating Assistant Turn {turn} | Length: {length_directive[:13]}")
         
-        system_msg = ASSISTANT_TURN_PROMPT.format(length_directive=length_directive)
-        prompt = f"Topic: {state['topic']}\n\nConversation thus far:\n{history}\n\nGenerate your response (JSON):"
+        system_msg = ASSISTANT_TURN_PROMPT.format(length_directive=length_directive, current_turn=turn)
+        formatted = format_history(history)
+        prompt = f"Topic: {state['topic']}\n\nConversation thus far:\n{formatted}\n\nGenerate your response (JSON):"
         
         try:
             result_wrapper = self.llm.generate(prompt=prompt, system_message=system_msg, temperature=0.3)
