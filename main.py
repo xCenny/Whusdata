@@ -198,6 +198,9 @@ def orchestrator_loop():
             failure_type = critic_data.get("failure_type", "UNKNOWN")
             feedback = critic_data.get("feedback", "")
             iterations = final_state.get("iterations", 0)
+            
+            # Fetch active workspace from settings
+            current_dataset = db.get_setting("current_dataset_name") or "default"
 
             # Guard 0: API Failure Rescue
             if final_state.get("api_failure", False):
@@ -221,7 +224,8 @@ def orchestrator_loop():
                         metadata=metadata,
                         critic_data=temp_critic,
                         tier=0,
-                        mode=gen_mode
+                        mode=gen_mode,
+                        dataset_name=current_dataset
                     )
                 time.sleep(15)
 
@@ -255,12 +259,13 @@ def orchestrator_loop():
                 metadata=metadata,
                 critic_data=critic_data,
                 tier=tier,
-                mode=gen_mode
+                mode=gen_mode,
+                dataset_name=current_dataset
             )
             if row_id:
                 db.mark_topic_status(topic_id, "PROCESSED")
                 tier_label = {1: "🥇 Tier 1 (Gold)", 2: "🥈 Tier 2 (Silver)", 3: "🥉 Tier 3 (Bronze)"}
-                logger.info(f"✅ Topic {topic_id} → {tier_label.get(tier)} [{gen_mode}] | Confidence: {confidence:.2f} | Saved!")
+                logger.info(f"✅ Topic {topic_id} → {tier_label.get(tier)} [{gen_mode}] | Dataset: {current_dataset} | Saved!")
             else:
                 db.mark_topic_status(topic_id, "FAILED (DUPLICATE)")
             

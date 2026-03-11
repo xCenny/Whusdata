@@ -261,6 +261,27 @@ elif page == "⚙️ Pipeline Control":
             st.rerun()
     
     st.markdown("---")
+    st.subheader("📂 Active Dataset Workspace")
+    st.caption("All new generations will be tagged with this dataset name. Change it to start filling a different dataset.")
+    
+    existing_datasets = db.get_unique_datasets()
+    current_ws = db.get_setting("current_dataset_name") or "default"
+    
+    ws_c1, ws_c2 = st.columns([2, 1])
+    with ws_c1:
+        ws_choice = st.selectbox("Select existing workspace", options=existing_datasets, index=existing_datasets.index(current_ws) if current_ws in existing_datasets else 0)
+    with ws_c2:
+        new_ws = st.text_input("Or create new workspace", placeholder="e.g. science-adversarial")
+    
+    final_ws = new_ws.strip() if new_ws.strip() else ws_choice
+    if st.button("📂 Set Active Workspace", use_container_width=True):
+        db.set_setting("current_dataset_name", final_ws)
+        st.success(f"Active workspace set to: **{final_ws}**")
+        st.rerun()
+    
+    st.info(f"🔵 Currently generating into: **`{current_ws}`**")
+
+    st.markdown("---")
     st.subheader("⚙️ Behavior Settings")
     
     # Load current settings, fallback to defaults
@@ -574,7 +595,11 @@ elif page == "🧬 Data Augmentation":
         sc1, sc2, sc3 = st.columns(3)
         tier_to_augment = sc1.selectbox("Target Tier source (e.g. Tier 1)", [1, 2, 3])
         num_seeds = sc2.number_input("How many conversations to parse?", min_value=1, max_value=100, value=10)
-        multiplier = sc3.slider("Multiplier (Variations per conov)", min_value=1, max_value=5, value=3)
+        multiplier = sc3.slider("Multiplier (Variations per conv)", min_value=1, max_value=5, value=3)
+        
+        aug_datasets = db.get_unique_datasets()
+        aug_ds = st.selectbox("📂 Source Dataset Workspace", options=["All"] + aug_datasets)
+        aug_ds_val = aug_ds if aug_ds != "All" else None
         
         all_providers = db.get_all_providers()
         available_models = [p["name"] for p in all_providers] if all_providers else ["gemini-flash"]
@@ -590,10 +615,10 @@ elif page == "🧬 Data Augmentation":
                 llm = LLMClient()
                 augmenter = DataAugmenter(db, llm)
                 
-                targets = db.get_generations_for_augmentation(limit=int(num_seeds), tier=int(tier_to_augment))
+                targets = db.get_generations_for_augmentation(limit=int(num_seeds), tier=int(tier_to_augment), dataset_filter=aug_ds_val)
                 
                 if not targets:
-                    st.warning("No eligible un-augmented conversations found for that tier.")
+                    st.warning("No eligible un-augmented conversations found for that tier/dataset.")
                 else:
                     progress_text = "Augmenting in progress. Please wait."
                     my_bar = st.progress(0, text=progress_text)
@@ -619,16 +644,35 @@ elif page == "📥 Export Dataset":
     
     st.markdown("---")
     st.subheader("🔧 Export Filters")
-    ef1, ef2, ef3 = st.columns(3)
+    ef1, ef2, ef3, ef4 = st.columns(4)
     tier_sel = ef1.selectbox("Tier Filter", ["All", "1 (Gold)", "2 (Silver)", "3 (Bronze)"])
     domain_sel = ef2.text_input("Domain Filter", placeholder="Leave empty for all")
     diff_sel = ef3.selectbox("Difficulty Filter", ["All", "Beginner", "Intermediate", "Advanced"])
+    
+    export_datasets = db.get_unique_datasets()
+    ds_sel = ef4.selectbox("📂 Dataset Workspace", ["All"] + export_datasets)
     
     tier_val = None
     if tier_sel != "All":
         tier_val = int(tier_sel[0])
     domain_val = domain_sel.strip() if domain_sel.strip() else None
     diff_val = diff_sel if diff_sel != "All" else None
+    ds_val = ds_sel if ds_sel != "All" else None
+    
+    # ── Dataset Management (Delete) ──
+    st.markdown("---")
+    st.subheader("🗑️ Dataset Management")
+    del_c1, del_c2 = st.columns(2)
+    with del_c1:
+        del_ds = st.selectbox("Select dataset to manage", export_datasets, key="del_ds")
+    with del_c2:
+        del_mode = st.radio("Delete mode", ["Only Augmented (Safe)", "Entire Dataset (⚠️ Destructive)"], horizontal=True)
+    
+    if st.button("🗑️ Delete Selected", type="secondary", use_container_width=True):
+        aug_only = del_mode.startswith("Only")
+        count = db.delete_generations(del_ds, augmented_only=aug_only)
+        st.warning(f"Deleted {count} rows from '{del_ds}' ({'augmented only' if aug_only else 'ALL data'}).")
+        st.rerun()
     
     st.markdown("---")
     st.subheader("🚀 Multi-Repo Hugging Face Push")
@@ -639,10 +683,14 @@ elif page == "📥 Export Dataset":
     hf_targets = db.get_hf_targets()
     df_hf = pd.DataFrame(hf_targets)
     if not df_hf.empty:
-        df_hf = df_hf[["id", "is_active", "name", "repo_id", "hf_token", "tier_filter", "domain_filter", "difficulty_filter"]]
+        cols_to_show = ["id", "is_active", "name", "repo_id", "hf_token", "tier_filter", "domain_filter", "difficulty_filter", "dataset_filter"]
+        for c in cols_to_show:
+            if c not in df_hf.columns:
+                df_hf[c] = None
+        df_hf = df_hf[cols_to_show]
         
     edited_hf = st.data_editor(
-        df_hf if not df_hf.empty else pd.DataFrame(columns=["id", "is_active", "name", "repo_id", "hf_token", "tier_filter", "domain_filter", "difficulty_filter"]),
+        df_hf if not df_hf.empty else pd.DataFrame(columns=["id", "is_active", "name", "repo_id", "hf_token", "tier_filter", "domain_filter", "difficulty_filter", "dataset_filter"]),
         num_rows="dynamic",
         use_container_width=True,
         column_config={
@@ -653,7 +701,8 @@ elif page == "📥 Export Dataset":
             "hf_token": st.column_config.TextColumn("HF Token (hf_...)", required=True),
             "tier_filter": st.column_config.NumberColumn("Tier (1,2,3 or Empty)"),
             "domain_filter": st.column_config.TextColumn("Domain (or Empty)"),
-            "difficulty_filter": st.column_config.SelectboxColumn("Difficulty", options=["Beginner", "Intermediate", "Advanced"])
+            "difficulty_filter": st.column_config.SelectboxColumn("Difficulty", options=["Beginner", "Intermediate", "Advanced"]),
+            "dataset_filter": st.column_config.TextColumn("Dataset (or Empty)")
         }
     )
     
@@ -686,7 +735,7 @@ elif page == "📥 Export Dataset":
     with c1:
         if st.button("📦 Gen Temporary JSONL (Current Page Filters)", use_container_width=True):
             with st.spinner("Exporting..."):
-                data = db.export_jsonl(tier_filter=tier_val, domain_filter=domain_val, difficulty_filter=diff_val)
+                data = db.export_jsonl(tier_filter=tier_val, domain_filter=domain_val, difficulty_filter=diff_val, dataset_filter=ds_val)
                 if data:
                     jsonl = "\n".join([json.dumps(d, ensure_ascii=False) for d in data])
                     st.download_button(
@@ -718,8 +767,9 @@ elif page == "📥 Export Dataset":
                             push_tier = int(t['tier_filter']) if t.get('tier_filter') else None
                             push_domain = str(t['domain_filter']).strip() if t.get('domain_filter') else None
                             push_diff = str(t['difficulty_filter']).strip() if t.get('difficulty_filter') else None
+                            push_ds = str(t['dataset_filter']).strip() if t.get('dataset_filter') else None
                             
-                            t_data = db.export_jsonl(tier_filter=push_tier, domain_filter=push_domain, difficulty_filter=push_diff)
+                            t_data = db.export_jsonl(tier_filter=push_tier, domain_filter=push_domain, difficulty_filter=push_diff, dataset_filter=push_ds)
                             
                             if not t_data:
                                 st.warning(f"No data matched for {t['name']}. Skipping.")

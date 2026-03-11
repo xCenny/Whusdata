@@ -95,6 +95,10 @@ class DatabaseManager:
                     cursor.execute("ALTER TABLE generations ADD COLUMN original_id INTEGER;")
                 except sqlite3.OperationalError:
                     pass
+                try:
+                    cursor.execute("ALTER TABLE generations ADD COLUMN dataset_name TEXT DEFAULT 'default';")
+                except sqlite3.OperationalError:
+                    pass
 
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS hf_export_targets (
@@ -105,9 +109,14 @@ class DatabaseManager:
                         tier_filter INTEGER,
                         domain_filter TEXT,
                         difficulty_filter TEXT,
+                        dataset_filter TEXT,
                         is_active BOOLEAN DEFAULT 1
                     );
                 """)
+                try:
+                    cursor.execute("ALTER TABLE hf_export_targets ADD COLUMN dataset_filter TEXT;")
+                except sqlite3.OperationalError:
+                    pass
                     
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS cost_log (
@@ -440,7 +449,7 @@ class DatabaseManager:
                 ).fetchall()
             return [dict(r) for r in rows]
 
-    def export_jsonl(self, tier_filter: int = None, domain_filter: str = None, difficulty_filter: str = None) -> List[Dict[str, Any]]:
+    def export_jsonl(self, tier_filter: int = None, domain_filter: str = None, difficulty_filter: str = None, dataset_filter: str = None) -> List[Dict[str, Any]]:
         """Exports PASSED generations in rich SFT-ready JSONL format including metadata."""
         with self.get_connection() as conn:
             query = "SELECT * FROM generations WHERE critic_status = 'PASS'"
@@ -454,6 +463,9 @@ class DatabaseManager:
             if difficulty_filter:
                 query += " AND difficulty_level = ?"
                 params.append(difficulty_filter)
+            if dataset_filter:
+                query += " AND dataset_name = ?"
+                params.append(dataset_filter)
             query += " ORDER BY timestamp ASC"
             rows = conn.execute(query, params).fetchall()
 
@@ -482,48 +494,33 @@ class DatabaseManager:
             conn.execute("DELETE FROM hf_export_targets WHERE id = ?", (t_id,))
             conn.commit()
 
-    def get_generations_for_augmentation(self, limit: int = 10, tier: int = 1) -> List[Dict[str, Any]]:
-        """Fetch base un-augmented data that hasn't been overly augmented."""
-        # Simple fetch for now
+    def get_unique_datasets(self) -> List[str]:
         with self.get_connection() as conn:
-            rows = conn.execute(
-                "SELECT * FROM generations WHERE critic_status = 'PASS' AND tier = ? "
-                "AND is_augmented = 0 ORDER BY RANDOM() LIMIT ?",
-                (tier, limit)
-            ).fetchall()
+            rows = conn.execute("SELECT DISTINCT dataset_name FROM generations WHERE dataset_name IS NOT NULL AND dataset_name != ''").fetchall()
+            return [r["dataset_name"] for r in rows] if rows else ["default"]
+
+    def delete_generations(self, dataset_name: str, augmented_only: bool = False) -> int:
+        with self.get_connection() as conn:
+            sql = "DELETE FROM generations WHERE dataset_name = ?"
+            if augmented_only:
+                sql += " AND is_augmented = 1"
+            cursor = conn.execute(sql, (dataset_name,))
+            conn.commit()
+            return cursor.rowcount
+
+    def get_generations_for_augmentation(self, limit: int = 10, tier: int = 1, dataset_filter: str = None) -> List[Dict[str, Any]]:
+        """Fetch base un-augmented data that hasn't been overly augmented."""
+        with self.get_connection() as conn:
+            sql = "SELECT * FROM generations WHERE critic_status = 'PASS' AND tier = ? AND is_augmented = 0"
+            params = [tier]
+            if dataset_filter:
+                sql += " AND dataset_name = ?"
+                params.append(dataset_filter)
+            sql += " ORDER BY RANDOM() LIMIT ?"
+            params.append(limit)
+            
+            rows = conn.execute(sql, params).fetchall()
             return [dict(r) for r in rows]
-            results = []
-            for r in rows:
-                r_dict = dict(r)
-                try:
-                    convo = json.loads(r["conversation_history"])
-                    clean = []
-                    for msg in convo:
-                        if msg.get("role") == "assistant":
-                            clean.append({"role": "assistant", "content": msg.get("content", "")})
-                        else:
-                            clean.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
-                            
-                    # Construct rich dataset point
-                    data_point = {
-                        "topic": r_dict["topic"],
-                        "domain": r_dict["domain"],
-                        "difficulty": r_dict["difficulty_level"],
-                        "persona": r_dict["persona_type"],
-                        "scenario_conflict": r_dict["conflict_type"],
-                        "winner": r_dict.get("winner", "Unknown"),
-                        "logic_score": r_dict.get("logic_score", 0.0),
-                        "critic_confidence": r_dict["critic_confidence"],
-                        "memory_score": r_dict["memory_consistency_score"],
-                        "factual_score": float(r_dict.get("factual_score", 0.0) or 0.0),
-                        "critic_analytics": json.loads(r_dict.get("critic_analytics", "{}")) if r_dict.get("critic_analytics") else {},
-                        "model_used": r_dict.get("model_used", "unknown"),
-                        "messages": clean
-                    }
-                    results.append(data_point)
-                except json.JSONDecodeError:
-                    continue
-            return results
 
     @staticmethod
     def generate_hash(code: str) -> str:
@@ -539,7 +536,8 @@ class DatabaseManager:
         tier: int = 0,
         mode: str = "production",
         is_augmented: bool = False,
-        original_id: int = None
+        original_id: int = None,
+        dataset_name: str = "default"
     ) -> Optional[int]:
         """Inserts a multi-turn generation with tier and mode classification."""
         convo_json = json.dumps(conversation_history, ensure_ascii=False)
@@ -555,9 +553,9 @@ class DatabaseManager:
                         tier, critic_status, critic_confidence, memory_consistency_score,
                         logic_score, winner, failure_type,
                         generation_mode, model_used, critic_model_used, sha256_hash,
-                        critic_analytics, factual_score, is_augmented, original_id
+                        critic_analytics, factual_score, is_augmented, original_id, dataset_name
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     topic,
                     convo_json,
@@ -580,7 +578,8 @@ class DatabaseManager:
                     json.dumps(critic_data.get("analytics", {}), ensure_ascii=False),
                     critic_data.get("factual_score", 0.0),
                     1 if is_augmented else 0,
-                    original_id
+                    original_id,
+                    dataset_name
                 ))
                 row_id = cursor.lastrowid
                 conn.commit()
