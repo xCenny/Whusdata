@@ -213,6 +213,8 @@ whusdata/
 - [x] Critic Token Cost Optimization (Removed metadata verify)
 - [x] HuggingFace Datasets oto-push (Tier 1)
 - [x] Synthetic Data Augmentation (Paraphrasing Multiplier) & Multi-Repo Export
+- [ ] Light Verifier (Augmented Data Quality Check)
+- [ ] Counterfactual Augmentation & Deduplication
 - [ ] Prompt A/B testing framework
 
 ---

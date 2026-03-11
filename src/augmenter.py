@@ -30,10 +30,8 @@ OUTPUT FORMAT:
 
 VARIATION_STYLES = [
     "VOCABULARY_SHIFT: Keep the exact same tone and length, but completely change the vocabulary. Use synonyms and rephrase sentences structurally while keeping the literal meaning identical.",
-    "PUNCHY_AND_AGGRESSIVE: Make every single turn much shorter, more direct, and aggressive. Remove any conversational filler. Be extremely blunt.",
-    "ACADEMIC_AND_VERBOSE: Rewrite every turn to sound like it is taking place in a highly formal, verbose academic debate. Use overly intellectual language and complex sentence structures.",
-    "SARCASTIC_AND_CYNICAL: Inject heavy sarcasm into both the user and the assistant's tone. The assistant should still win logically, but sound tired and cynical about the user's intelligence.",
-    "STREET_CASUAL: Rewrite the entire debate as if two people are arguing informally on Reddit or Twitter. Use slang, informal phrasing, and lack of capitalization where appropriate, but keep the core logic."
+    "CONCISE_AND_PUNCHY: Make every single turn much shorter, more direct, and concise. Remove any conversational filler. Be extremely blunt but strictly preserve the core arguments.",
+    "ACADEMIC_AND_VERBOSE: Rewrite every turn to sound like it is taking place in a highly formal, verbose academic debate. Use overly intellectual language and complex sentence structures."
 ]
 
 class DataAugmenter:
