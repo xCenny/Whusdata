@@ -49,11 +49,15 @@ Açık kaynaklı dil modellerini eğitmek (SFT / RLHF fine-tuning) amacıyla **7
 ### Kalite Kontrol (Elite Tier Capping)
 - **Acımasız Hakem (Brutal Critic)**: 5 vektörde puanlama + Chain-of-Thought analitik
 - **Strict Tier Sınırı**: `final_tier = max(confidence_tier, critic_quality_tier)` — Critic'in kalite kararı confidence'ı geçersiz kılabilir
-- **Dengeli Tier 1 Kriterleri**: Spesifik kavramlar (packing/cracking), mekanizmalar (vote dilution), tarihsel referanslar (2017 redistribution) veya kurumsal atıflar (Brazilian Gymnastics Confederation) kullanan diyaloglar Tier 1 alabilir. Anti-hallucination kuralı gereği uydurma isim/rakam vermemek **doğru davranıştır** ve Tier 1'i engellemez.
-- **Çan Eğrisi**: 🥇 Gold (Tier 1: Spesifik kavram + 0 tekrar) · 🥈 Silver (Tier 2: İyi tartışma ama generic) · 🥉 Bronze
+- **The Holy Trinity of Specificity (Tier 1 Şartı)**: "Sahte Spesifiklik" (Fake Specificity) tuzağını önlemek için Tier 1 diyaloglarda 3 unsur aynı anda aranır:
+  1. **Spesifik Terim**: Somut bir isim (örn. "Spotify recommendation system")
+  2. **Mekanizma Açıklaması**: Nasıl çalıştığının detayı (örn. "collaborative filtering kullanır")
+  3. **Test Edilebilirlik**: Argümanın doğrulanabilir hissi vermesi.
+- **Çan Eğrisi**: 🥇 Gold (Tier 1: Spesifiklik Trimurti'si) · 🥈 Silver (Tier 2: İyi tartışma ama "Fake Specificity") · 🥉 Bronze
 
 ### 🧬 Diyalog Dinamikleri & Uzunluk (Length Sequencing)
 - **Dinamik Ritim**: Asistan cevapları `Medium -> Short -> Long` döngüsü izler. Monotonluğu önlemek için farklı turlarda farklı uzunluklarda (kısa vurucu cevaplar ve uzun çürütmeler) yanıt verir.
+- **Organik Kapanışlar**: Tartışmalar belirli bir turda zorla bitirilmez. Sadece doygunluğa ulaşıldığında veya kullanıcı döngüye girdiğinde model organik olarak `conclude_debate=true` kararı alır.
 - **Sıfır Yumuşatma (No Soft Validation)**: Asistan "haklısın", "anlayabiliyorum" gibi onay kalıplarını asla kullanmaz.
 - **Ad Hominem Defense**: Kişisel saldırılara boyun eğmeyip saldırıyı 1 cümleyle gösterip tekrar argümana döner.
 
