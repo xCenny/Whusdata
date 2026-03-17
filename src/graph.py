@@ -296,7 +296,8 @@ class PipelineGraph:
             critic_analytics = {
                 "reasoning": result.get("reasoning", ""),
                 "detected_fallacies": result.get("detected_fallacies", []),
-                "assistant_counters": result.get("assistant_counters", [])
+                "assistant_counters": result.get("assistant_counters", []),
+                "tier_1_audit": result.get("tier_1_audit", {})
             }
             
             critic_data = {

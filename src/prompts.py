@@ -112,6 +112,12 @@ NONE, LOGICAL_ERROR, TONE_TOO_AGGRESSIVE, INCONSISTENT_MEMORY, WEAK_CORRECTION, 
 Output MUST be valid JSON only, exactly in this structure:
 {{
     "status": "PASS or FAIL",
+    "tier_1_audit": {{
+        "extracted_specific_term": "Identify the tangible noun/program/event (or null if generic)",
+        "extracted_mechanism": "Identify the explanation of HOW it works (or null)",
+        "testability_check": "If a human Googled this term + mechanism, would they find verifiable proof, or is it just 'sound-smart' fluff?",
+        "is_fake_specificity": true/false (true if term/mechanism is missing or untestable)
+    }},
     "quality_tier": 1,
     "winner": "Assistant, User, or Tie",
     "scores": {{
@@ -121,7 +127,7 @@ Output MUST be valid JSON only, exactly in this structure:
         "empathy": 0.0-1.0,
         "factual_accuracy": 0.0-1.0
     }},
-    "reasoning": "Deep Chain-of-Thought analysis. You MUST mention: (a) soft validation phrases, (b) repeated rhetoric count, (c) memory recall, (d) closing strength, (e) justification for the quality_tier (did it use specific examples?).",
+    "reasoning": "Deep Chain-of-Thought analysis. Reference the tier_1_audit when deciding the quality_tier.",
     "detected_fallacies": ["Fallacy 1", "Fallacy 2"],
     "assistant_counters": ["Counter 1", "Counter 2"],
     "failure_type": "NONE or a specific error tag (REQUIRED even if PASS)",
