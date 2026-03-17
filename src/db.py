@@ -780,20 +780,24 @@ class DatabaseManager:
             }
 
     def log_cost(self, model: str, prompt_tokens: int, completion_tokens: int):
-        """Logs the token usage and calculated cost for an LLM call using db pricing."""
+        """Logs the token usage and calculated cost for an LLM call using db pricing.
+        Correctly handles free tiers by forcing cost_usd to 0.0."""
         try:
             with self.get_connection() as conn:
-                # Fetch explicit pricing from llm_providers
+                # Fetch explicit pricing and free tier status from llm_providers
                 row = conn.execute(
-                    "SELECT cost_input_1m, cost_output_1m FROM llm_providers WHERE model_name = ? COLLATE NOCASE LIMIT 1",
+                    "SELECT cost_input_1m, cost_output_1m, is_free_tier FROM llm_providers WHERE model_name = ? COLLATE NOCASE LIMIT 1",
                     (model,)
                 ).fetchone()
                 
-                if row:
+                if row and row["is_free_tier"]:
+                    c_in = 0.0
+                    c_out = 0.0
+                elif row:
                     c_in = row["cost_input_1m"] / 1_000_000
                     c_out = row["cost_output_1m"] / 1_000_000
                 else:
-                    # Fallback approximation
+                    # Fallback approximation (assumes paid if not found)
                     c_in = 0.5 / 1_000_000
                     c_out = 0.5 / 1_000_000
 
