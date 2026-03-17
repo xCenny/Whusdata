@@ -48,8 +48,9 @@ Açık kaynaklı dil modellerini eğitmek (SFT / RLHF fine-tuning) amacıyla **7
 
 ### Kalite Kontrol (Elite Tier Capping)
 - **Acımasız Hakem (Brutal Critic)**: 5 vektörde puanlama + Chain-of-Thought analitik
-- **Strict Tier Sınırı**: Modelin confidence skoru %100 olsa bile, hedefe uygun spesifik kanıt/örnek yoksa veya ufak tekrara düşmüşse diyaloglar maksimum **Tier 2** ile sınırlandırılır (`quality_tier` parser).
-- **Çan Eğrisi**: 🥇 Gold (Tier 1: Spesifik kanıt + 0 tekrar) · 🥈 Silver (Tier 2: İyi tartışma ama genel) · 🥉 Bronze 
+- **Strict Tier Sınırı**: `final_tier = max(confidence_tier, critic_quality_tier)` — Critic'in kalite kararı confidence'ı geçersiz kılabilir
+- **Dengeli Tier 1 Kriterleri**: Spesifik kavramlar (packing/cracking), mekanizmalar (vote dilution), tarihsel referanslar (2017 redistribution) veya kurumsal atıflar (Brazilian Gymnastics Confederation) kullanan diyaloglar Tier 1 alabilir. Anti-hallucination kuralı gereği uydurma isim/rakam vermemek **doğru davranıştır** ve Tier 1'i engellemez.
+- **Çan Eğrisi**: 🥇 Gold (Tier 1: Spesifik kavram + 0 tekrar) · 🥈 Silver (Tier 2: İyi tartışma ama generic) · 🥉 Bronze
 
 ### 🧬 Diyalog Dinamikleri & Uzunluk (Length Sequencing)
 - **Dinamik Ritim**: Asistan cevapları `Medium -> Short -> Long` döngüsü izler. Monotonluğu önlemek için farklı turlarda farklı uzunluklarda (kısa vurucu cevaplar ve uzun çürütmeler) yanıt verir.
