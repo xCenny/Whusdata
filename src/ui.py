@@ -305,25 +305,44 @@ elif page == "⚙️ Pipeline Control":
             st.rerun()
     
     st.markdown("---")
-    st.subheader("📂 Active Dataset Workspace")
-    st.caption("All new generations will be tagged with this dataset name. Change it to start filling a different dataset.")
+    routing_enabled = db.get_setting("enable_dataset_routing") != "false"
     
-    existing_datasets = db.get_unique_datasets()
-    current_ws = db.get_setting("current_dataset_name") or "default"
+    tgt_col1, tgt_col2 = st.columns([4, 1])
+    tgt_col1.subheader("📂 Dataset Workspace Routing")
     
-    ws_c1, ws_c2 = st.columns([2, 1])
-    with ws_c1:
-        ws_choice = st.selectbox("Select existing workspace", options=existing_datasets, index=existing_datasets.index(current_ws) if current_ws in existing_datasets else 0)
-    with ws_c2:
-        new_ws = st.text_input("Or create new workspace", placeholder="e.g. science-adversarial")
-    
-    final_ws = new_ws.strip() if new_ws.strip() else ws_choice
-    if st.button("📂 Set Active Workspace", use_container_width=True):
-        db.set_setting("current_dataset_name", final_ws)
-        st.success(f"Active workspace set to: **{final_ws}**")
-        st.rerun()
-    
-    st.info(f"🔵 Currently generating into: **`{current_ws}`**")
+    if tgt_col2.toggle("Enable Routing", value=routing_enabled):
+        if not routing_enabled:
+            db.set_setting("enable_dataset_routing", "true")
+            st.rerun()
+    else:
+        if routing_enabled:
+            db.set_setting("enable_dataset_routing", "false")
+            st.rerun()
+
+    if routing_enabled:
+        st.caption("All new generations will be tagged with this dataset name. Change it to start filling a different dataset.")
+        
+        existing_datasets = list(db.get_unique_datasets())
+        if "default" not in existing_datasets:
+            existing_datasets.insert(0, "default")
+            
+        current_ws = db.get_setting("current_dataset_name") or "default"
+        
+        ws_c1, ws_c2 = st.columns([2, 1])
+        with ws_c1:
+            ws_choice = st.selectbox("Select existing workspace", options=existing_datasets, index=existing_datasets.index(current_ws) if current_ws in existing_datasets else 0)
+        with ws_c2:
+            new_ws = st.text_input("Or create new workspace", placeholder="e.g. science-adv")
+        
+        final_ws = new_ws.strip() if new_ws.strip() else ws_choice
+        if st.button("📂 Set Active Workspace", use_container_width=True):
+            db.set_setting("current_dataset_name", final_ws)
+            st.success(f"Active workspace set to: **{final_ws}**")
+            st.rerun()
+        
+        st.info(f"🔵 Currently generating into: **`{current_ws}`**")
+    else:
+        st.info("🔵 Routing disabled. All new dataset generations will be tagged as **`default`**.")
 
     st.markdown("---")
     st.subheader("⚙️ Behavior Settings")
@@ -724,6 +743,7 @@ elif page == "📥 Export Dataset":
     
     # HF Targets Manager
     st.markdown("#### ⚙️ Configure Targets")
+    st.caption("Example — Target Label: `Main Dataset`, Repo: `xCenny/Whusdata-Main`")
     hf_targets = db.get_hf_targets()
     df_hf = pd.DataFrame(hf_targets)
     if not df_hf.empty:
@@ -777,20 +797,20 @@ elif page == "📥 Export Dataset":
     st.markdown("#### 📤 Push Actions")
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("📦 Gen Temporary JSONL (Current Page Filters)", use_container_width=True):
-            with st.spinner("Exporting..."):
-                data = db.export_jsonl(tier_filter=tier_val, domain_filter=domain_val, difficulty_filter=diff_val, dataset_filter=ds_val)
-                if data:
-                    jsonl = "\n".join([json.dumps(d, ensure_ascii=False) for d in data])
-                    st.download_button(
-                        label=f"⬇️ Download {len(data)} rows (.jsonl)",
-                        data=jsonl,
-                        file_name=f"whusdata_temp_{datetime.now().strftime('%Y%m%d')}.jsonl",
-                        mime="application/jsonl",
-                        use_container_width=True
-                    )
-                else:
-                    st.warning("No data found.")
+        st.info("⬇️ Instant JSONL Download")
+        st.caption("Filters apply automatically to this file.")
+        data = db.export_jsonl(tier_filter=tier_val, domain_filter=domain_val, difficulty_filter=diff_val, dataset_filter=ds_val)
+        if data:
+            jsonl = "\n".join([json.dumps(d, ensure_ascii=False) for d in data])
+            st.download_button(
+                label=f"⬇️ Download {len(data)} rows (.jsonl)",
+                data=jsonl,
+                file_name=f"whusdata_temp_{datetime.now().strftime('%Y%m%d')}.jsonl",
+                mime="application/jsonl",
+                use_container_width=True
+            )
+        else:
+            st.button("❌ No Data Found", disabled=True, use_container_width=True)
                     
     with c2:
         if st.button("☁️ Push to ALL Active Targets", use_container_width=True):

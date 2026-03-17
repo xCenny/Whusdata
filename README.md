@@ -46,21 +46,20 @@ Açık kaynaklı dil modellerini eğitmek (SFT / RLHF fine-tuning) amacıyla **7
 - **Contextual Memory Recall**: Asistan önceki turlardaki spesifik hatalara geri referans verir
 - **Dinamik Bitiş**: LLM-Driven Termination — tekrar tespitinde otonom kapanış
 
-### Kalite Kontrol
-- **Acımasız Hakem (Brutal Critic)**: 4 vektörde puanlama + Chain-of-Thought analitik
-- **Çan Eğrisi**: 🥇 Gold ≥0.75 · 🥈 Silver ≥0.65 · 🥉 Bronze ≥0.55
-- **Deep Analytics**: `reasoning`, `detected_fallacies`, `assistant_counters`, `factual_score`
+### Kalite Kontrol (Elite Tier Capping)
+- **Acımasız Hakem (Brutal Critic)**: 5 vektörde puanlama + Chain-of-Thought analitik
+- **Strict Tier Sınırı**: Modelin confidence skoru %100 olsa bile, hedefe uygun spesifik kanıt/örnek yoksa veya ufak tekrara düşmüşse diyaloglar maksimum **Tier 2** ile sınırlandırılır (`quality_tier` parser).
+- **Çan Eğrisi**: 🥇 Gold (Tier 1: Spesifik kanıt + 0 tekrar) · 🥈 Silver (Tier 2: İyi tartışma ama genel) · 🥉 Bronze 
 
-### 🧬 Veri Çoğaltma (Data Augmentation)
-- **Paraphrasing Multiplier**: Onaylı Tier 1 verileri ucuz modelle (Gemini Flash vb.) çoğaltma
-- **3 Güvenli Stil**: `VOCABULARY_SHIFT` · `CONCISE_AND_PUNCHY` · `ACADEMIC_AND_VERBOSE`
-- **Reasoning koruması**: Sadece diyalog yeniden yazılır, mantık zinciri bozulmaz
-- **Workspace bazlı**: İstenen datasetten istenen miktarı çoğalt
+### 🧬 Diyalog Dinamikleri & Uzunluk (Length Sequencing)
+- **Dinamik Ritim**: Asistan cevapları `Medium -> Short -> Long` döngüsü izler. Monotonluğu önlemek için farklı turlarda farklı uzunluklarda (kısa vurucu cevaplar ve uzun çürütmeler) yanıt verir.
+- **Sıfır Yumuşatma (No Soft Validation)**: Asistan "haklısın", "anlayabiliyorum" gibi onay kalıplarını asla kullanmaz.
+- **Ad Hominem Defense**: Kişisel saldırılara boyun eğmeyip saldırıyı 1 cümleyle gösterip tekrar argümana döner.
 
 ### 📂 Dataset Workspaces (Koleksiyonlar)
 - **Çoklu veri seti**: Pipeline Control'den aktif workspace seçimi (örn: `climate-science`, `math-reasoning`)
-- **Seçici yönetim**: Sadece augmented kısmı sil veya tüm dataseti temizle
-- **Filtreleme**: Tier + Domain + Difficulty + Workspace bazlı dışa aktarım
+- **Routing Toggle**: İstenirse UI'dan "Dataset Routing" kapatılarak tüm verilerin `default` ismine yazılması sağlanabilir.
+- **Seçici yönetim**: İstenen workspace'i tamamen veya sadece augmented kısmıyla silme yeteneği.
 
 ### 📥 Multi-Repo HF Export
 - **Çoklu hedef**: Birden fazla HuggingFace reposu tanımlama (filtre kurallarıyla)

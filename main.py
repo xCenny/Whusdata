@@ -200,7 +200,11 @@ def orchestrator_loop():
             iterations = final_state.get("iterations", 0)
             
             # Fetch active workspace from settings
-            current_dataset = db.get_setting("current_dataset_name") or "default"
+            routing_enabled = db.get_setting("enable_dataset_routing") != "false"
+            if routing_enabled:
+                current_dataset = db.get_setting("current_dataset_name") or "default"
+            else:
+                current_dataset = "default"
 
             # Guard 0: API Failure Rescue
             if final_state.get("api_failure", False):
