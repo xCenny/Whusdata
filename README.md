@@ -42,7 +42,7 @@ Açık kaynaklı dil modellerini eğitmek (SFT / RLHF fine-tuning) amacıyla **7
 ### Veri Üretimi
 - **8-12 Mesajlık Adversarial Diyalog**: Sıralı ajan çağrıları ile gerçek tartışma dinamiği
 - **Mantık Saldırıları**: Strawman, Ad Hominem, False Dilemma, Contradiction Trap
-- **Halüsinasyon Koruması**: Citation Hedging — sahte kaynak uydurmak yerine belirsizlik itirafı
+- **Halüsinasyon Koruması (Citation Hedging)**: Sahte kaynak uydurmak yerine belirsizlik itirafı. **Anti-Fake-Evidence Rule (STRICT)**: DOI, sayfa no veya derin link vermek yasaktır (Otomatik FAIL). Sanal metadatalar yerine gerçek mekanizmalar istenir.
 - **Contextual Memory Recall**: Asistan önceki turlardaki spesifik hatalara geri referans verir
 - **Dinamik Bitiş**: LLM-Driven Termination — tekrar tespitinde otonom kapanış
 
