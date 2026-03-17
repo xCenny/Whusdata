@@ -42,11 +42,13 @@ def get_length_directive(turn: int) -> str:
     ])
 
 def format_history(history: list) -> str:
-    """Convert raw history list to clean readable text for LLM context."""
+    """Convert raw history list to clean readable text for LLM context.
+    Strips internal 'reasoning' fields to save context space."""
     lines = []
     for msg in history:
         role = msg.get("role", "unknown").capitalize()
         content = msg.get("content", "")
+        # Only include the public content, skip internal reasoning
         lines.append(f"{role}: {content}")
     return "\n\n".join(lines)
 
@@ -92,6 +94,16 @@ class GraphState(TypedDict):
     usage_log: List[Dict[str, Any]] # To track cost across all nodes
 
 class PipelineGraph:
+    # Condensed rules reminder injected at the END of each assistant prompt
+    # to counteract the "lost in the middle" effect as context grows.
+    RULES_REMINDER = (
+        "\n\n[!!! CRITICAL REMINDERS — READ BEFORE RESPONDING !!!]\n"
+        "- BANNED PHRASES: 'Calling me [X]', 'Labeling me [X]', 'merely shifts/diverts/sidesteps' = AUTOMATIC FAIL.\n"
+        "- NO HALLUCINATED DATA: Do NOT invent file names, patent numbers, dollar amounts, fake URLs, or fake study titles.\n"
+        "- HOLY TRINITY: Every claim needs (1) Specific Term, (2) Mechanism Explanation, (3) Testable by Google.\n"
+        "- STRUCTURAL VARIETY: Use a DIFFERENT sentence structure than your previous turns. If Turn 1 started with 'Your claim...', Turn 2 CANNOT start similarly.\n"
+    )
+
     def __init__(self, llm_client: LLMClient):
         self.llm = llm_client
         self.graph = self._build_graph()
@@ -187,7 +199,7 @@ class PipelineGraph:
         
         system_msg = ASSISTANT_TURN_PROMPT.format(length_directive=length_directive, current_turn=turn)
         formatted = format_history(history)
-        prompt = f"Topic: {state['topic']}\n\nConversation thus far:\n{formatted}\n\nGenerate your response (JSON):"
+        prompt = f"Topic: {state['topic']}\n\nConversation thus far:\n{formatted}{self.RULES_REMINDER}\nGenerate your response (JSON):"
         
         try:
             result_wrapper = self.llm.generate(prompt=prompt, system_message=system_msg, temperature=0.3)
