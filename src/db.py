@@ -468,6 +468,43 @@ class DatabaseManager:
                 params.append(dataset_filter)
             query += " ORDER BY timestamp ASC"
             rows = conn.execute(query, params).fetchall()
+            
+            results = []
+            for row in rows:
+                r = dict(row)
+                # Parse stored JSON strings
+                try:
+                    r["conversation_history"] = json.loads(r.get("conversation_history", "[]"))
+                except (json.JSONDecodeError, TypeError):
+                    r["conversation_history"] = []
+                try:
+                    r["critic_analytics"] = json.loads(r.get("critic_analytics", "{}"))
+                except (json.JSONDecodeError, TypeError):
+                    r["critic_analytics"] = {}
+                    
+                # Build clean SFT-ready output
+                messages = []
+                for msg in r["conversation_history"]:
+                    messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+                
+                results.append({
+                    "topic": r.get("topic", ""),
+                    "domain": r.get("domain", ""),
+                    "difficulty": r.get("difficulty_level", ""),
+                    "persona": r.get("persona_type", ""),
+                    "scenario_conflict": r.get("conflict_type", ""),
+                    "winner": r.get("winner", ""),
+                    "logic_score": r.get("logic_score", 0),
+                    "factual_score": r.get("factual_score", 0),
+                    "critic_confidence": r.get("critic_confidence", 0),
+                    "memory_score": r.get("memory_consistency", 0),
+                    "tier": r.get("tier", 0),
+                    "model_used": r.get("model_used", ""),
+                    "messages": messages,
+                    "critic_analytics": r["critic_analytics"],
+                    "dataset_name": r.get("dataset_name", "default")
+                })
+            return results
 
     def get_hf_targets(self) -> List[Dict[str, Any]]:
         with self.get_connection() as conn:
