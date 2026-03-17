@@ -218,16 +218,18 @@ class PipelineGraph:
         if state.get("rejected"):
             return "finalize"
         
-        turn = state.get("current_turn", 1) # This is actually the NEXT turn number now
+        turn = state.get("current_turn", 1) # This is the NEXT turn number
         
-        # Enforce minimum 2 turns before allowing autonomous conclusion
+        # Hard cap: NEVER go beyond 3 assistant turns to prevent quality degradation
+        if turn > 3:
+            logger.info("Graph: Hard cap reached (3 turns). Forcing finalize to preserve quality.")
+            return "finalize"
+        
+        # Allow autonomous conclusion after minimum 2 turns
         if state.get("conclude_debate", False) and turn > 2:
+            logger.info("Graph: Assistant elected to conclude debate at optimal point.")
             return "finalize"
-            
-        turn = state.get("current_turn", 1) # This is actually the NEXT turn number now
-        target_turns = state.get("metadata", {}).get("target_turns", 3)
-        if turn > target_turns:
-            return "finalize"
+        
         return "next_turn"
 
     def node_generate_metadata(self, state: GraphState) -> Dict[str, Any]:
