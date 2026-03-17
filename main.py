@@ -245,7 +245,15 @@ def orchestrator_loop():
                 continue
 
             # Guard 4: Tier classification
-            tier = classify_tier(confidence)
+            computed_tier = classify_tier(confidence)
+            critic_max_tier = int(critic_data.get("quality_tier", 3))
+            
+            if computed_tier == 0:
+                tier = 0
+            else:
+                # The tier number corresponds to ranking (1=best, 3=worst). We take the strictest (highest number).
+                tier = max(computed_tier, critic_max_tier)
+                
             if tier == 0:
                 handle_failure(failure_type, feedback)
                 continue

@@ -307,7 +307,8 @@ class PipelineGraph:
                 "failure_type": failure_type,
                 "feedback": result.get("feedback", ""),
                 "scores": scores,
-                "analytics": critic_analytics
+                "analytics": critic_analytics,
+                "quality_tier": result.get("quality_tier", 3)
             }
             
             return {

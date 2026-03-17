@@ -86,7 +86,12 @@ CRITICAL RULES FOR PASSING (TARGET PASS RATE: ~55-70%):
 
 7. WEAK CLOSING DETECTION: If the final Assistant turn is significantly shorter or lower-effort than previous turns (e.g., 2-3 generic sentences vs. previous 6-8 sentence responses), deduct from conflict_resolution. The closing argument should be the STRONGEST, not the weakest.
 
-8. The Assistant MUST win the debate definitively through superior reasoning. If the user's fallacy isn't completely dismantled, FAIL it.
+8. QUALITY TIER CLASSIFICATION (CRITICAL): You must explicitly assign a quality_tier (1, 2, or 3) to the Assistant's performance:
+   - Tier 1 (ELITE): The Assistant provided SPECIFIC, CONCRETE evidence (e.g., naming a specific historical event, a specific scientific principle, a specific real-world example) to dismantle the user's argument. The Assistant's arguments EVOLVED in every turn (zero repetition). The interaction fundamentally advances human reasoning. (Very rare).
+   - Tier 2 (GOOD): The Assistant maintained an excellent academic tone and successfully dismantled fallacies, but did NOT provide highly specific concrete examples, OR it slightly rehashed the same broad concepts (like "established research" or "reconciliation") across turns. (Maximum tier for smart-sounding but generic/repetitive debates).
+   - Tier 3 (WEAK): The dialogue is superficial, very short, or the Assistant barely counters the user's points beyond basic contradiction.
+
+9. The Assistant MUST win the debate definitively through superior reasoning. If the user's fallacy isn't completely dismantled, FAIL it.
 
 Dimensions & Weights (BE HARSH. DO NOT GIVE DEFAULT FLAT SCORES. USE GRANULAR DECIMALS like 0.82, 0.45, 0.77):
 1. factual_accuracy (0.25): Did the Assistant state true, verified facts without hallucination?
@@ -103,6 +108,7 @@ NONE, LOGICAL_ERROR, TONE_TOO_AGGRESSIVE, INCONSISTENT_MEMORY, WEAK_CORRECTION, 
 Output MUST be valid JSON only, exactly in this structure:
 {{
     "status": "PASS or FAIL",
+    "quality_tier": 1,
     "winner": "Assistant, User, or Tie",
     "scores": {{
         "memory_consistency": 0.0-1.0,
@@ -111,7 +117,7 @@ Output MUST be valid JSON only, exactly in this structure:
         "empathy": 0.0-1.0,
         "factual_accuracy": 0.0-1.0
     }},
-    "reasoning": "Deep Chain-of-Thought analysis behind your scores. You MUST mention: (a) any soft validation phrases found, (b) repeated rhetoric count, (c) whether memory recall was used, (d) closing strength.",
+    "reasoning": "Deep Chain-of-Thought analysis. You MUST mention: (a) soft validation phrases, (b) repeated rhetoric count, (c) memory recall, (d) closing strength, (e) justification for the quality_tier (did it use specific examples?).",
     "detected_fallacies": ["Fallacy 1", "Fallacy 2"],
     "assistant_counters": ["Counter 1", "Counter 2"],
     "failure_type": "NONE or a specific error tag (REQUIRED even if PASS)",
