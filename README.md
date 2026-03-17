@@ -43,6 +43,9 @@ Açık kaynaklı dil modellerini eğitmek (SFT / RLHF fine-tuning) amacıyla **7
 - **8-12 Mesajlık Adversarial Diyalog**: Sıralı ajan çağrıları ile gerçek tartışma dinamiği
 - **Mantık Saldırıları**: Strawman, Ad Hominem, False Dilemma, Contradiction Trap
 - **Halüsinasyon Koruması (Citation Hedging)**: Sahte kaynak uydurmak yerine belirsizlik itirafı. **Anti-Fake-Evidence Rule (STRICT)**: DOI, sayfa no veya derin link vermek yasaktır (Otomatik FAIL). Sanal metadatalar yerine gerçek mekanizmalar istenir.
+- **Anti-Fake-Specificity Guard**: Uydurma dosya isimleri (`.xlsx`, `.pdf`), sahte spreadsheet sütun adları, sahte hükümet URL'leri, uydurma patent numaraları ve sahte dolar rakamları otomatik olarak **FAIL** ile sonuçlanır. Model, doğrulayamadığı bir veriyi icat etmek yerine "mekanizma + mantık" ile argüman kurmaya zorlanır.
+- **Context Window Pollution Guard**: Her asistan turunda, prompt'un sonuna kritik kuralların özet hatırlatması (`RULES_REMINDER`) enjekte edilir. Bu, "Lost in the Middle" efektini yenerek geç turlarında kural ihlallerini önler.
+- **Anti-Structural Repetition**: "Calling me [X] sidesteps [Y]" ve benzeri formulaic kalıplar tüm turlar boyunca **yasaklıdır**. Asistan her tur farklı bir sözdizimsel yaklaşım kullanmaya zorlanır. Pozitif örneklerle yönlendirme.
 - **Contextual Memory Recall**: Asistan önceki turlardaki spesifik hatalara geri referans verir
 - **Dinamik Bitiş**: LLM-Driven Termination — tekrar tespitinde otonom kapanış
 
@@ -59,7 +62,7 @@ Açık kaynaklı dil modellerini eğitmek (SFT / RLHF fine-tuning) amacıyla **7
 - **Dinamik Ritim**: Asistan cevapları `Medium -> Short -> Long` döngüsü izler. Monotonluğu önlemek için farklı turlarda farklı uzunluklarda (kısa vurucu cevaplar ve uzun çürütmeler) yanıt verir.
 - **Organik Kapanışlar**: Tartışmalar belirli bir turda zorla bitirilmez. Sadece doygunluğa ulaşıldığında veya kullanıcı döngüye girdiğinde model organik olarak `conclude_debate=true` kararı alır.
 - **Sıfır Yumuşatma (No Soft Validation)**: Asistan "haklısın", "anlayabiliyorum" gibi onay kalıplarını asla kullanmaz.
-- **Ad Hominem Defense**: Kişisel saldırılara boyun eğmeyip saldırıyı 1 cümleyle gösterip tekrar argümana döner.
+- **Ad Hominem Defense**: Kişisel saldırılara boyun eğmeyip saldırıyı 1 cümleyle gösterip tekrar argümana döner. Pozitif örnekli çeşitlilik: her turda farklı savuşturma stili zorunludur.
 
 ### 📂 Dataset Workspaces (Koleksiyonlar)
 - **Çoklu veri seti**: Pipeline Control'den aktif workspace seçimi (örn: `climate-science`, `math-reasoning`)
@@ -76,6 +79,7 @@ Açık kaynaklı dil modellerini eğitmek (SFT / RLHF fine-tuning) amacıyla **7
 - **Token Caching**: Prefix-match prompt tasarımı ile %90 maliyet düşüşü
 - **Critic Token Optimizasyonu**: Metadata verify kaldırıldı
 - **Free Tier Delay**: Ücretsiz API'ler için yapay bekleme
+- **Free Tier Cost Fix**: `is_free_tier` olan modeller için `cost_usd = 0.0` yazılır. Dashboard'da ücretsiz API'ler artık maliyeti şişirmez.
 
 ---
 
@@ -211,6 +215,10 @@ whusdata/
 - [x] Budget & Token Cost Monitoring (BudgetGuardian)
 - [x] Persona & Conflict Distribution Control (Phase 9)
 - [x] Anti-Hallucination & Extended Reasoning (Phase 10)
+- [x] Anti-Fake-Specificity Guard (Uydurma dosya/URL/patent yasağı)
+- [x] Context Window Pollution Guard (RULES_REMINDER injection)
+- [x] Anti-Structural Repetition (Pozitif örnekli çeşitlilik)
+- [x] Free Tier Cost Fix (Ücretsiz API maliyet düzeltmesi)
 - [x] Organik Hafıza / Contextual Memory Recall (Phase 11)
 - [x] Deep RLHF Analytics & Chain of Thought (Phase 12)
 - [x] Critic Token Cost Optimization
@@ -218,6 +226,7 @@ whusdata/
 - [x] Synthetic Data Augmentation & Multi-Repo Export
 - [x] Dataset Workspaces (Koleksiyonlar)
 - [x] Minimalist UI Redesign
+- [ ] Post-Processing Regex Filter (Yasaklı kalıp tespiti → otomatik reflection)
 - [ ] Light Verifier (Augmented Data Quality Check)
 - [ ] Counterfactual Augmentation & Deduplication
 - [ ] Prompt A/B testing framework
