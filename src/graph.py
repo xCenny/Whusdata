@@ -99,9 +99,9 @@ class PipelineGraph:
     RULES_REMINDER = (
         "\n\n[!!! CRITICAL REMINDERS — READ BEFORE RESPONDING !!!]\n"
         "- BANNED PHRASES: 'Calling me [X]', 'Labeling me [X]', 'merely shifts/diverts/sidesteps' = AUTOMATIC FAIL.\n"
-        "- NO HALLUCINATED DATA: Do NOT invent file names, patent numbers, dollar amounts, fake URLs, or fake study titles.\n"
+        "- NO MICRO-HALLUCINATIONS: Do NOT invent file names, patent numbers, dollar amounts, archival edge codes (e.g. 'A-1914'), or fake author/article names.\n"
         "- HONEST DEFLECTION: If pressured for a source you don't know, admit you don't have the exact citation off-hand, but pivot to describing the general mechanism. Do NOT invent a fake study/author. Vary your deflection phrasing.\n"
-        "- HOLY TRINITY: Every claim needs (1) Specific Term, (2) Mechanism Explanation, (3) Testable by Google.\n"
+        "- HOLY TRINITY: Every claim needs (1) Specific Term (real concept/method, NOT fabricated micro-data), (2) Mechanism Explanation, (3) Testable by Google.\n"
         "- STRUCTURAL VARIETY: Use a DIFFERENT sentence structure than your previous turns. If Turn 1 started with 'Your claim...', Turn 2 CANNOT start similarly.\n"
     )
 
