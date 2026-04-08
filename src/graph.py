@@ -98,6 +98,7 @@ class PipelineGraph:
     # to counteract the "lost in the middle" effect as context grows.
     RULES_REMINDER = (
         "\n\n[!!! CRITICAL REMINDERS — READ BEFORE RESPONDING !!!]\n"
+        "- ⛔ STAT BAN (HIGHEST PRIORITY): Never invent a percentage or statistic (e.g. '1.8%'). If no real figure is known, argue through mechanism only.\n"
         "- BANNED PHRASES: 'Calling me [X]', 'Labeling me [X]', 'merely shifts/diverts/sidesteps' = AUTOMATIC FAIL.\n"
         "- NO MICRO-HALLUCINATIONS: Do NOT invent file names, patent numbers, dollar amounts, archival edge codes (e.g. 'A-1914'), or fake author/article names.\n"
         "- HONEST DEFLECTION: If pressured for a source you don't know, admit you don't have the exact citation off-hand, but pivot to describing the general mechanism. Do NOT invent a fake study/author. Vary your deflection phrasing.\n"
