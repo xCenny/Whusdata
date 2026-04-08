@@ -52,11 +52,12 @@ Açık kaynaklı dil modellerini eğitmek (SFT / RLHF fine-tuning) amacıyla **7
 ### Kalite Kontrol (Elite Tier Capping)
 - **Acımasız Hakem (Brutal Critic)**: 5 vektörde puanlama + Chain-of-Thought analitik
 - **Strict Tier Sınırı**: `final_tier = max(confidence_tier, critic_quality_tier)` — Critic'in kalite kararı confidence'ı geçersiz kılabilir
-- **The Holy Trinity of Specificity (Tier 1 Şartı)**: "Sahte Spesifiklik" (Fake Specificity) tuzağını önlemek için Tier 1 diyaloglarda 3 unsur aynı anda aranır:
-  1. **Spesifik Terim**: Somut bir isim (örn. "Spotify recommendation system")
-  2. **Mekanizma Açıklaması**: Nasıl çalıştığının detayı (örn. "collaborative filtering kullanır")
-  3. **Test Edilebilirlik**: Argümanın doğrulanabilir hissi vermesi.
-- **Çan Eğrisi**: 🥇 Gold (Tier 1: Spesifiklik Trimurti'si) · 🥈 Silver (Tier 2: İyi tartışma ama "Fake Specificity") · 🥉 Bronze
+- **The Holy Trinity of Specificity (Tier 1 Şartı)**: "Sahte Spesifiklik" (Fake Specificity) ve "Hipotetik Prosedür Halüsinasyonu" tuzaklarını önlemek için Tier 1 diyaloglarda 3 unsur aynı anda aranır:
+  1. **Spesifik Terim**: Gerçek, adlandırılmış bir varlık — akademik bir teori ("Tuchman'ın symbolic annihilation teorisi"), gerçek bir yasa ("BGB § 1355"), bilinen bir veri seti. "Spreadsheet audit" gibi belirsiz eylem isimleri YASAKTIR.
+  2. **Mekanizma Açıklaması**: Nedensellik zinciri (örn. "collaborative filtering kullanır")
+  3. **Test Edilebilirlik**: Bilgi ZATEN VAR olmalı, erişilebilir OLMALI. "Birisi bunu doğrulayabilmek için X yapabilir" tipi gelecekteki prosedürler "Sahte Test Edilebilirlik" sayılır ve FAIL ile sonuçlanır.
+- **Anti-Fake-Testability Guard (YENİ)**: "Anyone can verify by extracting/scraping/auditing..." kalıpları tamamen yasaklanmıştır — sunulan kanıt zaten var olmalıdır.
+- **Çan Eğrisi**: 🥇 Gold (Tier 1) · 🥈 Silver (Tier 2: İyi tartışma ama "Fake Specificity" veya "Hipotetik Prosedür") · 🥉 Bronze
 
 ### 🧬 Diyalog Dinamikleri & Uzunluk (Length Sequencing)
 - **Dinamik Ritim**: Asistan cevapları `Medium -> Short -> Long` döngüsü izler. Monotonluğu önlemek için farklı turlarda farklı uzunluklarda (kısa vurucu cevaplar ve uzun çürütmeler) yanıt verir.

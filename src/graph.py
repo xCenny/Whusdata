@@ -101,8 +101,11 @@ class PipelineGraph:
         "- BANNED PHRASES: 'Calling me [X]', 'Labeling me [X]', 'merely shifts/diverts/sidesteps' = AUTOMATIC FAIL.\n"
         "- NO MICRO-HALLUCINATIONS: Do NOT invent file names, patent numbers, dollar amounts, archival edge codes (e.g. 'A-1914'), or fake author/article names.\n"
         "- HONEST DEFLECTION: If pressured for a source you don't know, admit you don't have the exact citation off-hand, but pivot to describing the general mechanism. Do NOT invent a fake study/author. Vary your deflection phrasing.\n"
-        "- HOLY TRINITY: Every claim needs (1) Specific Term (real concept/method, NOT fabricated micro-data), (2) Mechanism Explanation, (3) Testable by Google.\n"
-        "- STRUCTURAL VARIETY: Use a DIFFERENT sentence structure than your previous turns. If Turn 1 started with 'Your claim...', Turn 2 CANNOT start similarly.\n"
+        "- HOLY TRINITY: (1) SPECIFIC TERM = a REAL NAMED ENTITY: named theory, real law, known dataset — NOT a vague action like 'a spreadsheet audit'. "
+        "(2) MECHANISM = explain the causal chain. "
+        "(3) TESTABILITY = the fact ALREADY EXISTS and is findable NOW — NOT a future procedure.\n"
+        "- FAKE TESTABILITY BAN: 'Anyone can verify by scraping/counting/auditing/extracting...' = BANNED. Evidence must already exist.\n"
+        "- STRUCTURAL VARIETY: Use a DIFFERENT sentence structure than your previous turns.\n"
     )
 
     def __init__(self, llm_client: LLMClient):
