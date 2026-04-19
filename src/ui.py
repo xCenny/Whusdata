@@ -232,25 +232,26 @@ elif page == "💬 Conversations":
         
         with st.expander(f"{tier_emoji} #{convo['id']} {mode_label} — {convo.get('topic', 'N/A')[:55]}... | Conf: {conf:.2f}"):
             tc1, tc2, tc3, tc4, tc5 = st.columns(5)
-            # Show original persona and detailed persona if exists
-            det_p = convo.get("detailed_persona", "")
-            p_text = f"**Persona:** `{convo.get('persona_type', '-')}`"
+            
+            # Clean newlines from LLM outputs to prevent rendering gaps
+            det_p = convo.get("detailed_persona", "").replace("\n", " ").strip()
+            conflict = convo.get('conflict_type', '-').replace("\n", " ").strip()
+            bc = convo.get("broad_category", "").replace("\n", " ").strip()
+            domain_val = convo.get('domain', '-').replace("\n", " ").strip()
+            orig_p = convo.get('persona_type', '-').replace("\n", " ").strip()
+
+            p_text = f"**Persona:** `{orig_p}`"
             if det_p and det_p != "Unknown":
-                p_text += f"\n\n<small><i>{det_p}</i></small>"
-            tc1.markdown(p_text, unsafe_allow_html=True)
+                p_text += f"\n\n*{det_p}*"
+            tc1.markdown(p_text)
             
-            # Conflict is now a long description, so use small italics instead of backticks
-            conflict = convo.get('conflict_type', '-')
-            tc2.markdown(f"**Conflict:**\n\n<small><i>{conflict}</i></small>", unsafe_allow_html=True)
-            
-            bc = convo.get("broad_category", "")
-            domain_val = convo.get('domain', '-')
+            tc2.markdown(f"**Conflict:**\n\n*{conflict}*")
             
             d_text = ""
             if bc and bc != "Unknown":
                 d_text += f"**Tag:** `{bc}`\n\n"
-            d_text += f"**Domain:**\n\n<small><i>{domain_val}</i></small>"
-            tc3.markdown(d_text, unsafe_allow_html=True)
+            d_text += f"**Domain:**\n\n*{domain_val}*"
+            tc3.markdown(d_text)
             
             tc4.markdown(f"**Tier:** `{tier}`")
             tc5.markdown(f"**🤖 Gen:** `{convo.get('model_used', 'unknown')}` | **⚖️ Critic:** `{convo.get('critic_model_used', 'unknown')}`")
