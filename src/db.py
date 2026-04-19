@@ -99,6 +99,14 @@ class DatabaseManager:
                     cursor.execute("ALTER TABLE generations ADD COLUMN dataset_name TEXT DEFAULT 'default';")
                 except sqlite3.OperationalError:
                     pass
+                try:
+                    cursor.execute("ALTER TABLE generations ADD COLUMN broad_category TEXT;")
+                except sqlite3.OperationalError:
+                    pass
+                try:
+                    cursor.execute("ALTER TABLE generations ADD COLUMN detailed_persona TEXT;")
+                except sqlite3.OperationalError:
+                    pass
 
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS hf_export_targets (
@@ -607,9 +615,10 @@ class DatabaseManager:
                         tier, critic_status, critic_confidence, memory_consistency_score,
                         logic_score, winner, failure_type,
                         generation_mode, model_used, critic_model_used, sha256_hash,
-                        critic_analytics, factual_score, is_augmented, original_id, dataset_name
+                        critic_analytics, factual_score, is_augmented, original_id, dataset_name,
+                        broad_category, detailed_persona
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     topic,
                     convo_json,
@@ -633,7 +642,9 @@ class DatabaseManager:
                     critic_data.get("factual_score", 0.0),
                     1 if is_augmented else 0,
                     original_id,
-                    dataset_name
+                    dataset_name,
+                    metadata.get("broad_category", "Unknown"),
+                    metadata.get("detailed_persona", "Unknown")
                 ))
                 row_id = cursor.lastrowid
                 conn.commit()
@@ -883,7 +894,6 @@ class DatabaseManager:
             unknown_resolution = conn.execute(
                 "SELECT COUNT(*) as c FROM generations WHERE resolution_style IS NULL OR resolution_style = '' OR resolution_style = 'Unknown'"
             ).fetchone()["c"]
-            # Any record with at least one Unknown field
             any_unknown = conn.execute(
                 """SELECT COUNT(*) as c FROM generations WHERE 
                    (domain IS NULL OR domain = '' OR domain = 'Unknown')
@@ -891,6 +901,8 @@ class DatabaseManager:
                    OR (difficulty_level IS NULL OR difficulty_level = '' OR difficulty_level = 'Unknown')
                    OR (conflict_type IS NULL OR conflict_type = '' OR conflict_type = 'Unknown')
                    OR (resolution_style IS NULL OR resolution_style = '' OR resolution_style = 'Unknown')
+                   OR (broad_category IS NULL OR broad_category = '' OR broad_category = 'Unknown')
+                   OR (detailed_persona IS NULL OR detailed_persona = '' OR detailed_persona = 'Unknown')
                 """
             ).fetchone()["c"]
             return {
@@ -917,6 +929,8 @@ class DatabaseManager:
                     OR (difficulty_level IS NULL OR difficulty_level = '' OR difficulty_level = 'Unknown')
                     OR (conflict_type IS NULL OR conflict_type = '' OR conflict_type = 'Unknown')
                     OR (resolution_style IS NULL OR resolution_style = '' OR resolution_style = 'Unknown')
+                    OR (broad_category IS NULL OR broad_category = '' OR broad_category = 'Unknown')
+                    OR (detailed_persona IS NULL OR detailed_persona = '' OR detailed_persona = 'Unknown')
                 )"""
             
             if dataset_filter:
@@ -934,7 +948,7 @@ class DatabaseManager:
 
     def update_generation_tags(self, gen_id: int, new_tags: Dict[str, str]):
         """Updates metadata fields (domain, persona_type, etc.) for a single generation."""
-        allowed_fields = {"domain", "persona_type", "conflict_type", "resolution_style", "difficulty_level"}
+        allowed_fields = {"domain", "persona_type", "conflict_type", "resolution_style", "difficulty_level", "broad_category", "detailed_persona"}
         updates = {k: v for k, v in new_tags.items() if k in allowed_fields and v}
         
         if not updates:

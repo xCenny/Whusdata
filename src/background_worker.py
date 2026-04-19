@@ -55,7 +55,7 @@ def run_retag_job(job_id: int, targets: list, retag_model: str, only_unknown: bo
             
             if isinstance(result, dict) and result:
                 new_tags = {}
-                for field in ["domain", "persona_type", "conflict_type", "resolution_style", "difficulty_level"]:
+                for field in ["domain", "conflict_type", "resolution_style", "difficulty_level", "broad_category", "detailed_persona"]:
                     val = result.get(field, "")
                     if val and val != "Unknown":
                         if only_unknown:

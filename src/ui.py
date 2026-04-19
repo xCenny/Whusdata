@@ -232,9 +232,21 @@ elif page == "💬 Conversations":
         
         with st.expander(f"{tier_emoji} #{convo['id']} {mode_label} — {convo.get('topic', 'N/A')[:55]}... | Conf: {conf:.2f}"):
             tc1, tc2, tc3, tc4, tc5 = st.columns(5)
-            tc1.markdown(f"**Persona:** `{convo.get('persona_type', '-')}`")
+            # Show original persona and detailed persona if exists
+            det_p = convo.get("detailed_persona", "")
+            p_text = f"**Persona:** `{convo.get('persona_type', '-')}`"
+            if det_p and det_p != "Unknown":
+                p_text += f"\n\n<small><i>{det_p}</i></small>"
+            tc1.markdown(p_text, unsafe_allow_html=True)
+            
             tc2.markdown(f"**Conflict:** `{convo.get('conflict_type', '-')}`")
-            tc3.markdown(f"**Domain:** `{convo.get('domain', '-')}`")
+            
+            bc = convo.get("broad_category", "")
+            d_text = f"**Domain:** `{convo.get('domain', '-')}`"
+            if bc and bc != "Unknown":
+                d_text = f"**Tag:** `{bc}`\n\n" + d_text
+            tc3.markdown(d_text)
+            
             tc4.markdown(f"**Tier:** `{tier}`")
             tc5.markdown(f"**🤖 Gen:** `{convo.get('model_used', 'unknown')}` | **⚖️ Critic:** `{convo.get('critic_model_used', 'unknown')}`")
             st.markdown("---")

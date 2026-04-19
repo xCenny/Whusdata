@@ -61,13 +61,15 @@ Conversation:
 
 [WARNING: Respond ONLY with the raw JSON object. Do NOT include ANY conversational text before or after the JSON. Do NOT use markdown code blocks like ```json.]
 
-Output MUST be valid JSON only:
+Output MUST be valid JSON only with exactly these keys:
 {{
-    "persona_type": "The user's persona",
-    "conflict_type": "The core conflict",
+    "broad_category": "A strict 1-2 word broad label (e.g., 'History', 'Psychology', 'Technology', 'Law', 'Biology').",
+    "domain": "Highly specific detailed domain, 1 sentence (e.g., 'Quantum Physics - specifically entanglement paradoxes').",
+    "persona_type": "Short baseline identifier (e.g., 'conspiracy theorist', 'aggressive skeptic').",
+    "detailed_persona": "Highly descriptive, nuanced 1-2 sentence breakdown of the user's psychological angle (e.g., 'Aggressive skeptic demanding rigorous, current evidence while dismissing established models...').",
+    "conflict_type": "Highly detailed core conflict (e.g., 'Evidence credibility and recency - user challenges the methodological rigor...').",
     "resolution_style": "How the assistant solved it",
-    "difficulty_level": "Beginner, Intermediate, Advanced",
-    "domain": "The topic domain"
+    "difficulty_level": "Beginner, Intermediate, Advanced"
 }}
 """
 
