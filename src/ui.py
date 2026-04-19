@@ -233,12 +233,12 @@ elif page == "💬 Conversations":
         with st.expander(f"{tier_emoji} #{convo['id']} {mode_label} — {convo.get('topic', 'N/A')[:55]}... | Conf: {conf:.2f}"):
             tc1, tc2, tc3, tc4, tc5 = st.columns(5)
             
-            # Clean newlines from LLM outputs to prevent rendering gaps
-            det_p = convo.get("detailed_persona", "").replace("\n", " ").strip()
-            conflict = convo.get('conflict_type', '-').replace("\n", " ").strip()
-            bc = convo.get("broad_category", "").replace("\n", " ").strip()
-            domain_val = convo.get('domain', '-').replace("\n", " ").strip()
-            orig_p = convo.get('persona_type', '-').replace("\n", " ").strip()
+            # Clean newlines from LLM outputs to prevent rendering gaps. Handle DB NULLs gracefully.
+            det_p = (convo.get("detailed_persona") or "").replace("\n", " ").strip()
+            conflict = (convo.get('conflict_type') or "-").replace("\n", " ").strip()
+            bc = (convo.get("broad_category") or "").replace("\n", " ").strip()
+            domain_val = (convo.get('domain') or "-").replace("\n", " ").strip()
+            orig_p = (convo.get('persona_type') or "-").replace("\n", " ").strip()
 
             p_text = f"**Persona:** `{orig_p}`"
             if det_p and det_p != "Unknown":
