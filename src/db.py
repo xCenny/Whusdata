@@ -252,6 +252,23 @@ class DatabaseManager:
                         """, ks)
                     conn.commit()
 
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS background_jobs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        job_type TEXT,
+                        status TEXT DEFAULT 'RUNNING',
+                        progress INTEGER DEFAULT 0,
+                        total INTEGER DEFAULT 0,
+                        success_count INTEGER DEFAULT 0,
+                        error_count INTEGER DEFAULT 0,
+                        config TEXT,
+                        result_message TEXT,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                conn.commit()
+
                 logger.info("Database initialized successfully with WAL mode.")
         except Exception as e:
             logger.error(f"Error initializing database: {e}")
@@ -845,3 +862,162 @@ class DatabaseManager:
                 "convos_per_1m_tokens": convos_per_1m,
                 "est_cost_1000": est_1000
             }
+
+    # ── AI Re-Tagging Helpers ──
+    def get_retag_stats(self) -> Dict[str, Any]:
+        """Returns counts of records that need re-tagging (Unknown or empty metadata fields)."""
+        with self.get_connection() as conn:
+            total = conn.execute("SELECT COUNT(*) as c FROM generations").fetchone()["c"]
+            unknown_domain = conn.execute(
+                "SELECT COUNT(*) as c FROM generations WHERE domain IS NULL OR domain = '' OR domain = 'Unknown'"
+            ).fetchone()["c"]
+            unknown_persona = conn.execute(
+                "SELECT COUNT(*) as c FROM generations WHERE persona_type IS NULL OR persona_type = '' OR persona_type = 'Unknown'"
+            ).fetchone()["c"]
+            unknown_difficulty = conn.execute(
+                "SELECT COUNT(*) as c FROM generations WHERE difficulty_level IS NULL OR difficulty_level = '' OR difficulty_level = 'Unknown'"
+            ).fetchone()["c"]
+            unknown_conflict = conn.execute(
+                "SELECT COUNT(*) as c FROM generations WHERE conflict_type IS NULL OR conflict_type = '' OR conflict_type = 'Unknown'"
+            ).fetchone()["c"]
+            unknown_resolution = conn.execute(
+                "SELECT COUNT(*) as c FROM generations WHERE resolution_style IS NULL OR resolution_style = '' OR resolution_style = 'Unknown'"
+            ).fetchone()["c"]
+            # Any record with at least one Unknown field
+            any_unknown = conn.execute(
+                """SELECT COUNT(*) as c FROM generations WHERE 
+                   (domain IS NULL OR domain = '' OR domain = 'Unknown')
+                   OR (persona_type IS NULL OR persona_type = '' OR persona_type = 'Unknown')
+                   OR (difficulty_level IS NULL OR difficulty_level = '' OR difficulty_level = 'Unknown')
+                   OR (conflict_type IS NULL OR conflict_type = '' OR conflict_type = 'Unknown')
+                   OR (resolution_style IS NULL OR resolution_style = '' OR resolution_style = 'Unknown')
+                """
+            ).fetchone()["c"]
+            return {
+                "total": total,
+                "unknown_domain": unknown_domain,
+                "unknown_persona": unknown_persona,
+                "unknown_difficulty": unknown_difficulty,
+                "unknown_conflict": unknown_conflict,
+                "unknown_resolution": unknown_resolution,
+                "any_unknown": any_unknown
+            }
+
+    def get_generations_for_retagging(self, limit: int = 50, dataset_filter: str = None, 
+                                       domain_filter: str = None, only_unknown: bool = True) -> List[Dict[str, Any]]:
+        """Fetches generations that need re-tagging."""
+        with self.get_connection() as conn:
+            sql = "SELECT * FROM generations WHERE 1=1"
+            params = []
+            
+            if only_unknown:
+                sql += """ AND (
+                    (domain IS NULL OR domain = '' OR domain = 'Unknown')
+                    OR (persona_type IS NULL OR persona_type = '' OR persona_type = 'Unknown')
+                    OR (difficulty_level IS NULL OR difficulty_level = '' OR difficulty_level = 'Unknown')
+                    OR (conflict_type IS NULL OR conflict_type = '' OR conflict_type = 'Unknown')
+                    OR (resolution_style IS NULL OR resolution_style = '' OR resolution_style = 'Unknown')
+                )"""
+            
+            if dataset_filter:
+                sql += " AND dataset_name = ?"
+                params.append(dataset_filter)
+            if domain_filter and domain_filter != "All":
+                sql += " AND domain = ?"
+                params.append(domain_filter)
+                
+            sql += " ORDER BY id ASC LIMIT ?"
+            params.append(limit)
+            
+            rows = conn.execute(sql, params).fetchall()
+            return [dict(r) for r in rows]
+
+    def update_generation_tags(self, gen_id: int, new_tags: Dict[str, str]):
+        """Updates metadata fields (domain, persona_type, etc.) for a single generation."""
+        allowed_fields = {"domain", "persona_type", "conflict_type", "resolution_style", "difficulty_level"}
+        updates = {k: v for k, v in new_tags.items() if k in allowed_fields and v}
+        
+        if not updates:
+            return
+            
+        fields = ", ".join([f"{k} = ?" for k in updates.keys()])
+        values = list(updates.values()) + [gen_id]
+        
+        with self.get_connection() as conn:
+            conn.execute(f"UPDATE generations SET {fields} WHERE id = ?", values)
+            conn.commit()
+
+    # ── Background Job Helpers ──
+    def create_background_job(self, job_type: str, total: int, config: Dict = None) -> int:
+        """Creates a new background job and returns its ID."""
+        import json as _json
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                "INSERT INTO background_jobs (job_type, status, total, config) VALUES (?, 'RUNNING', ?, ?)",
+                (job_type, total, _json.dumps(config or {}))
+            )
+            conn.commit()
+            return cursor.lastrowid
+
+    def update_background_job(self, job_id: int, progress: int = None, success_count: int = None, 
+                               error_count: int = None, status: str = None, result_message: str = None):
+        """Updates a background job's progress."""
+        updates = []
+        params = []
+        if progress is not None:
+            updates.append("progress = ?")
+            params.append(progress)
+        if success_count is not None:
+            updates.append("success_count = ?")
+            params.append(success_count)
+        if error_count is not None:
+            updates.append("error_count = ?")
+            params.append(error_count)
+        if status is not None:
+            updates.append("status = ?")
+            params.append(status)
+        if result_message is not None:
+            updates.append("result_message = ?")
+            params.append(result_message)
+        updates.append("updated_at = CURRENT_TIMESTAMP")
+        params.append(job_id)
+        
+        with self.get_connection() as conn:
+            conn.execute(f"UPDATE background_jobs SET {', '.join(updates)} WHERE id = ?", params)
+            conn.commit()
+
+    def get_background_job(self, job_id: int) -> Dict[str, Any]:
+        """Gets a single background job by ID."""
+        with self.get_connection() as conn:
+            row = conn.execute("SELECT * FROM background_jobs WHERE id = ?", (job_id,)).fetchone()
+            return dict(row) if row else {}
+
+    def get_active_background_jobs(self, job_type: str = None) -> List[Dict[str, Any]]:
+        """Gets all active (RUNNING) background jobs, optionally filtered by type."""
+        with self.get_connection() as conn:
+            if job_type:
+                rows = conn.execute(
+                    "SELECT * FROM background_jobs WHERE status = 'RUNNING' AND job_type = ? ORDER BY created_at DESC", 
+                    (job_type,)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM background_jobs WHERE status = 'RUNNING' ORDER BY created_at DESC"
+                ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_recent_background_jobs(self, job_type: str = None, limit: int = 5) -> List[Dict[str, Any]]:
+        """Gets recent background jobs for display."""
+        with self.get_connection() as conn:
+            if job_type:
+                rows = conn.execute(
+                    "SELECT * FROM background_jobs WHERE job_type = ? ORDER BY created_at DESC LIMIT ?",
+                    (job_type, limit)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM background_jobs ORDER BY created_at DESC LIMIT ?",
+                    (limit,)
+                ).fetchall()
+            return [dict(r) for r in rows]
+

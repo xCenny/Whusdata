@@ -90,7 +90,7 @@ db = get_db()
 st.sidebar.markdown("#### ⚡ Whusdata")
 page = st.sidebar.radio(
     "Navigate",
-    ["📊 Dashboard", "📈 Drift Monitor", "💬 Conversations", "🎯 Weekly Planner", "⚙️ Pipeline Control", "🤖 Models & Prices", "🔑 API Keys", "📚 Knowledge Sources", "🧬 Data Augmentation", "📥 Export Dataset"],
+    ["📊 Dashboard", "📈 Drift Monitor", "💬 Conversations", "🎯 Weekly Planner", "⚙️ Pipeline Control", "🤖 Models & Prices", "🔑 API Keys", "📚 Knowledge Sources", "🧬 Data Augmentation", "🏷️ AI Re-Tagger", "📥 Export Dataset"],
     label_visibility="collapsed"
 )
 pipeline_status = db.get_setting("pipeline_status") or "running"
@@ -343,6 +343,61 @@ elif page == "⚙️ Pipeline Control":
         st.info(f"🔵 Currently generating into: **`{current_ws}`**")
     else:
         st.info("🔵 Routing disabled. All new dataset generations will be tagged as **`default`**.")
+
+    st.markdown("---")
+    st.subheader("🎯 Topic Focus")
+    st.caption("Set a domain focus to guide the Research Agent toward specific topics. Leave empty for random/diverse mode.")
+    
+    current_focus = db.get_setting("topic_focus") or ""
+    current_focus_instructions = db.get_setting("topic_focus_instructions") or ""
+    focus_enabled = bool(current_focus.strip())
+    
+    with st.form("topic_focus_form"):
+        fc1, fc2 = st.columns([3, 1])
+        new_focus = fc1.text_input(
+            "Focus Domains (comma separated)",
+            value=current_focus,
+            placeholder="Fizik, Teknoloji, Biyoloji",
+            help="Birden fazla alan virgülle ayrılabilir. Boş bırakılırsa rastgele çalışır."
+        )
+        fc2.markdown("")
+        fc2.markdown("")
+        if focus_enabled:
+            fc2.success("🟢 Active")
+        else:
+            fc2.info("⚪ Off")
+        
+        new_instructions = st.text_area(
+            "Additional Focus Instructions (Optional)",
+            value=current_focus_instructions,
+            placeholder="Kuantum mekaniği ve parçacık fiziği konularına odaklan...",
+            height=80,
+            help="Ek detaylı talimatlar. Research Agent bu yönergeleri dikkate alır."
+        )
+        
+        available_domains = "Fizik/Physics, Teknoloji/Technology, Biyoloji/Biology, Felsefe/Philosophy, Tarih/History, Ekonomi/Economics, Matematik/Mathematics, Psikoloji/Psychology"
+        st.caption(f"📝 Predefined domains: {available_domains}")
+        st.caption("💡 Custom domains also work — the LLM will target any domain you specify.")
+        
+        fc_btn1, fc_btn2 = st.columns(2)
+        with fc_btn1:
+            if st.form_submit_button("💾 Save Focus", use_container_width=True):
+                db.set_setting("topic_focus", new_focus.strip())
+                db.set_setting("topic_focus_instructions", new_instructions.strip())
+                if new_focus.strip():
+                    st.success(f"🎯 Topic Focus set to: **{new_focus.strip()}**")
+                else:
+                    st.success("🔄 Topic Focus cleared. Research Agent will use random/diverse mode.")
+                st.rerun()
+        with fc_btn2:
+            if st.form_submit_button("🗑️ Clear Focus", use_container_width=True):
+                db.set_setting("topic_focus", "")
+                db.set_setting("topic_focus_instructions", "")
+                st.success("Focus cleared!")
+                st.rerun()
+    
+    if focus_enabled:
+        st.info(f"🎯 Currently focusing on: **`{current_focus}`**")
 
     st.markdown("---")
     st.subheader("⚙️ Behavior Settings")
@@ -668,32 +723,41 @@ elif page == "🧬 Data Augmentation":
         available_models = [p["name"] for p in all_providers] if all_providers else ["gemini-flash"]
         model_choice = st.selectbox("Augmentation Model (Cheap/Fast recommended)", available_models)
         
-        st.markdown("⚠️ *Process runs synchronously and may take a while based on batch size.*")
+        st.markdown("💡 *Job runs in background — you can navigate away from this page.*")
         
         if st.form_submit_button("🚀 Start Augmentation Process", use_container_width=True):
-            with st.spinner(f"Fetching {num_seeds} Tier {tier_to_augment} un-augmented conversations..."):
-                from src.augmenter import DataAugmenter
-                from src.llm_client import LLMClient
-                
-                llm = LLMClient()
-                augmenter = DataAugmenter(db, llm)
-                
-                targets = db.get_generations_for_augmentation(limit=int(num_seeds), tier=int(tier_to_augment), dataset_filter=aug_ds_val)
-                
-                if not targets:
-                    st.warning("No eligible un-augmented conversations found for that tier/dataset.")
-                else:
-                    progress_text = "Augmenting in progress. Please wait."
-                    my_bar = st.progress(0, text=progress_text)
-                    
-                    total_success = 0
-                    for i, t in enumerate(targets):
-                        res_count = augmenter.augment_generation(t, int(multiplier), model_choice)
-                        total_success += res_count
-                        my_bar.progress((i + 1) / len(targets), text=f"Processing {i+1}/{len(targets)}... (Generated {total_success} new rows)")
-                    
-                    st.success(f"✅ Augmentation complete! Generated {total_success} brand new variations from {len(targets)} base conversations.")
-                    st.balloons()
+            targets = db.get_generations_for_augmentation(limit=int(num_seeds), tier=int(tier_to_augment), dataset_filter=aug_ds_val)
+            
+            if not targets:
+                st.warning("No eligible un-augmented conversations found for that tier/dataset.")
+            else:
+                from src.background_worker import start_augment_job
+                job_id = start_augment_job(targets, int(multiplier), model_choice)
+                st.success(f"🚀 Background augmentation job #{job_id} started with {len(targets)} conversations!")
+                st.rerun()
+    
+    # Show active & recent jobs
+    st.markdown("---")
+    st.subheader("📋 Job Status")
+    
+    active_jobs = db.get_active_background_jobs("augment")
+    recent_jobs = db.get_recent_background_jobs("augment", limit=5)
+    
+    if active_jobs:
+        for job in active_jobs:
+            pct = (job["progress"] / job["total"] * 100) if job["total"] > 0 else 0
+            st.progress(job["progress"] / max(job["total"], 1), text=f"Job #{job['id']} — {job['progress']}/{job['total']} ({pct:.0f}%) | ✅ {job['success_count']} | ❌ {job['error_count']}")
+        
+        if st.button("🔄 Refresh Status", key="refresh_aug"):
+            st.rerun()
+        st.info("⏳ Auto-refresh: click the button above or navigate away and come back.")
+    
+    if recent_jobs:
+        with st.expander("📜 Recent Augmentation Jobs"):
+            for job in recent_jobs:
+                status_icon = "🟢" if job["status"] == "DONE" else "🔵" if job["status"] == "RUNNING" else "🔴"
+                config = json.loads(job.get("config", "{}"))
+                st.markdown(f"{status_icon} **Job #{job['id']}** — {job['status']} | Model: `{config.get('model', 'N/A')}` | ✅ {job['success_count']} created | {job.get('result_message', '')}")
 
 # ═══════════════════════════════════════════════
 # 📥 EXPORT DATASET
@@ -855,3 +919,98 @@ elif page == "📥 Export Dataset":
                     st.balloons()
                 except Exception as e:
                     st.error(f"Push failed: {e}")
+
+# ═══════════════════════════════════════════════
+# 🏷️ AI RE-TAGGER
+# ═══════════════════════════════════════════════
+elif page == "🏷️ AI Re-Tagger":
+    st.title("🏷️ AI Re-Tagger")
+    st.caption("Retroactively classify/tag existing data using an AI model. Fix Unknown or missing domain, persona, difficulty etc.")
+    
+    retag_stats = db.get_retag_stats()
+    
+    # Stats Row
+    rc1, rc2, rc3, rc4 = st.columns(4)
+    with rc1:
+        st.markdown(f'<div class="metric-card"><h2>{retag_stats["any_unknown"]}</h2><p>Need Re-Tag</p></div>', unsafe_allow_html=True)
+    with rc2:
+        st.markdown(f'<div class="metric-card"><h2>{retag_stats["unknown_domain"]}</h2><p>Unknown Domain</p></div>', unsafe_allow_html=True)
+    with rc3:
+        st.markdown(f'<div class="metric-card"><h2>{retag_stats["unknown_difficulty"]}</h2><p>Unknown Difficulty</p></div>', unsafe_allow_html=True)
+    with rc4:
+        st.markdown(f'<div class="metric-card"><h2>{retag_stats["total"]}</h2><p>Total Records</p></div>', unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # Detail breakdown
+    with st.expander("📊 Detailed Unknown Breakdown"):
+        det1, det2, det3 = st.columns(3)
+        det1.metric("Unknown Persona", retag_stats["unknown_persona"])
+        det2.metric("Unknown Conflict", retag_stats["unknown_conflict"])
+        det3.metric("Unknown Resolution", retag_stats["unknown_resolution"])
+    
+    st.markdown("---")
+    st.subheader("🚀 Batch Re-Tag")
+    st.info("💡 **How it works:** The selected AI model reads each conversation and re-classifies domain, persona_type, conflict_type, resolution_style, and difficulty_level using the same prompt as the generation pipeline.")
+    
+    with st.form("retag_form"):
+        rt1, rt2, rt3 = st.columns(3)
+        
+        all_providers = db.get_all_providers()
+        available_models = [p["name"] for p in all_providers] if all_providers else ["gemini-flash"]
+        retag_model = rt1.selectbox("AI Model for Re-Tagging", available_models, help="Choose a fast/cheap model for bulk re-tagging")
+        
+        batch_size = rt2.slider("Batch Size", min_value=1, max_value=200, value=25, step=5)
+        
+        retag_datasets = db.get_unique_datasets()
+        retag_ds = rt3.selectbox("📂 Dataset Filter", options=["All"] + retag_datasets)
+        retag_ds_val = retag_ds if retag_ds != "All" else None
+        
+        retag_mode = st.radio(
+            "Re-Tag Mode",
+            ["Only Unknown/Empty fields", "Re-tag ALL records (overwrite existing)"],
+            horizontal=True,
+            help="'Only Unknown' is safe — it only fills empty fields. 'ALL' overwrites even existing tags."
+        )
+        only_unknown = retag_mode.startswith("Only")
+        
+        st.markdown("💡 *Job runs in background — you can navigate away from this page.*")
+        
+        if st.form_submit_button("🚀 Start Re-Tagging", use_container_width=True):
+            targets = db.get_generations_for_retagging(
+                limit=int(batch_size),
+                dataset_filter=retag_ds_val,
+                only_unknown=only_unknown
+            )
+            
+            if not targets:
+                st.warning("No eligible records found for re-tagging with the selected filters.")
+            else:
+                from src.background_worker import start_retag_job
+                job_id = start_retag_job(targets, retag_model, only_unknown)
+                st.success(f"🚀 Background re-tag job #{job_id} started with {len(targets)} conversations!")
+                st.rerun()
+
+    # Show active & recent jobs
+    st.markdown("---")
+    st.subheader("📋 Job Status")
+    
+    active_jobs = db.get_active_background_jobs("retag")
+    recent_jobs = db.get_recent_background_jobs("retag", limit=5)
+    
+    if active_jobs:
+        for job in active_jobs:
+            pct = (job["progress"] / job["total"] * 100) if job["total"] > 0 else 0
+            st.progress(job["progress"] / max(job["total"], 1), text=f"Job #{job['id']} — {job['progress']}/{job['total']} ({pct:.0f}%) | ✅ {job['success_count']} | ❌ {job['error_count']}")
+        
+        if st.button("🔄 Refresh Status", key="refresh_retag"):
+            st.rerun()
+        st.info("⏳ Auto-refresh: click the button above or navigate away and come back.")
+    
+    if recent_jobs:
+        with st.expander("📜 Recent Re-Tag Jobs"):
+            for job in recent_jobs:
+                status_icon = "🟢" if job["status"] == "DONE" else "🔵" if job["status"] == "RUNNING" else "🔴"
+                config = json.loads(job.get("config", "{}"))
+                st.markdown(f"{status_icon} **Job #{job['id']}** — {job['status']} | Model: `{config.get('model', 'N/A')}` | ✅ {job['success_count']} | {job.get('result_message', '')}")
+

@@ -213,7 +213,6 @@ whusdata/
 - [x] Streamlit Admin Dashboard (Phase 3)
 - [x] Turn-by-Turn Adversarial Machine (Phase 4)
 - [x] Server-side Weighted Critic Scoring (Phase 1 Hardened)
-- [x] Budget & Token Cost Monitoring (BudgetGuardian)
 - [x] Persona & Conflict Distribution Control (Phase 9)
 - [x] Anti-Hallucination & Extended Reasoning (Phase 10)
 - [x] Anti-Fake-Specificity Guard (Uydurma dosya/URL/patent yasağı)
@@ -226,6 +225,9 @@ whusdata/
 - [x] HuggingFace Datasets oto-push
 - [x] Synthetic Data Augmentation & Multi-Repo Export
 - [x] Dataset Workspaces (Koleksiyonlar)
+- [x] Topic Focus System (Çoklu domain odaklı research yönlendirmesi)
+- [x] AI Re-Tagger (Geri dönük kategori ve metadata düzeltici)
+- [x] Background Jobs (Re-Tagger ve Augmenter artık asenkron arkaplanda çalışır)
 - [x] Minimalist UI Redesign
 - [ ] Post-Processing Regex Filter (Yasaklı kalıp tespiti → otomatik reflection)
 - [ ] Light Verifier (Augmented Data Quality Check)

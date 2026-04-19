@@ -8,12 +8,94 @@ from src.prompts import RESEARCHER_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 
+# Domain-specific seed word pools for topic focus
+DOMAIN_SEED_WORDS = {
+    "fizik": [
+        "Quantum entanglement paradoxes", "Thermodynamic entropy paradoxes", "Dark matter detection methods",
+        "Non-Euclidean geometry principles", "Theoretical astrophysics anomalies", "Standard Model limitations",
+        "General relativity edge cases", "Higgs boson implications", "Quantum chromodynamics",
+        "Particle accelerator physics", "String theory criticisms", "Wave-particle duality"
+    ],
+    "physics": [
+        "Quantum entanglement paradoxes", "Thermodynamic entropy paradoxes", "Dark matter detection methods",
+        "Non-Euclidean geometry principles", "Theoretical astrophysics anomalies", "Standard Model limitations",
+        "General relativity edge cases", "Higgs boson implications", "Quantum chromodynamics",
+        "Particle accelerator physics", "String theory criticisms", "Wave-particle duality"
+    ],
+    "teknoloji": [
+        "Cryptographic hash collisions", "Advanced robotics kinematics", "Turing machine limitations",
+        "CRISPR off-target effects", "Neural network interpretability", "Autonomous vehicle ethics",
+        "Blockchain scalability trilemma", "Quantum computing error correction", "LLM hallucination taxonomy",
+        "Brain-computer interface risks", "Zero-knowledge proof systems", "Homomorphic encryption challenges"
+    ],
+    "technology": [
+        "Cryptographic hash collisions", "Advanced robotics kinematics", "Turing machine limitations",
+        "CRISPR off-target effects", "Neural network interpretability", "Autonomous vehicle ethics",
+        "Blockchain scalability trilemma", "Quantum computing error correction", "LLM hallucination taxonomy",
+        "Brain-computer interface risks", "Zero-knowledge proof systems", "Homomorphic encryption challenges"
+    ],
+    "biyoloji": [
+        "Epigenetic inheritance", "Microbiome symbiosis", "CRISPR off-target effects",
+        "Neuroplasticity in adult brains", "Horizontal gene transfer", "Endosymbiotic theory controversies",
+        "Prion disease mechanisms", "Synthetic biology ethics", "Telomere biology and aging"
+    ],
+    "biology": [
+        "Epigenetic inheritance", "Microbiome symbiosis", "CRISPR off-target effects",
+        "Neuroplasticity in adult brains", "Horizontal gene transfer", "Endosymbiotic theory controversies",
+        "Prion disease mechanisms", "Synthetic biology ethics", "Telomere biology and aging"
+    ],
+    "felsefe": [
+        "Post-structuralism concepts", "The Fermi Paradox solutions", "Linguistic relativity",
+        "Consciousness hard problem", "Free will compatibilism", "Epistemological skepticism",
+        "Trolley problem variations", "Philosophy of mind dualism", "Existentialism vs nihilism"
+    ],
+    "philosophy": [
+        "Post-structuralism concepts", "The Fermi Paradox solutions", "Linguistic relativity",
+        "Consciousness hard problem", "Free will compatibilism", "Epistemological skepticism",
+        "Trolley problem variations", "Philosophy of mind dualism", "Existentialism vs nihilism"
+    ],
+    "tarih": [
+        "Bronze Age Collapse mathematics", "Ancient metallurgy techniques", "Geopolitical choke points",
+        "Paleoclimatology data", "Socio-cultural evolution theories", "Ottoman decline theories",
+        "Industrial revolution social impacts", "Cold War proxy conflicts", "Ancient trade routes"
+    ],
+    "history": [
+        "Bronze Age Collapse mathematics", "Ancient metallurgy techniques", "Geopolitical choke points",
+        "Paleoclimatology data", "Socio-cultural evolution theories", "Ottoman decline theories",
+        "Industrial revolution social impacts", "Cold War proxy conflicts", "Ancient trade routes"
+    ],
+    "ekonomi": [
+        "Behavioral economics heuristics", "Modern monetary theory debates", "Cryptocurrency regulation paradox",
+        "Supply-side vs demand-side economics", "Gini coefficient limitations", "Dutch disease economics"
+    ],
+    "economics": [
+        "Behavioral economics heuristics", "Modern monetary theory debates", "Cryptocurrency regulation paradox",
+        "Supply-side vs demand-side economics", "Gini coefficient limitations", "Dutch disease economics"
+    ],
+    "matematik": [
+        "Non-Euclidean geometry principles", "Gödel incompleteness theorems", "Riemann hypothesis implications",
+        "Chaos theory applications", "Fractal geometry in nature", "P vs NP problem"
+    ],
+    "mathematics": [
+        "Non-Euclidean geometry principles", "Gödel incompleteness theorems", "Riemann hypothesis implications",
+        "Chaos theory applications", "Fractal geometry in nature", "P vs NP problem"
+    ],
+    "psikoloji": [
+        "Neuroplasticity in adult brains", "Behavioral economics heuristics", "Cognitive dissonance theory",
+        "Stockholm syndrome debates", "Dark triad personality traits", "Milgram experiment ethics"
+    ],
+    "psychology": [
+        "Neuroplasticity in adult brains", "Behavioral economics heuristics", "Cognitive dissonance theory",
+        "Stockholm syndrome debates", "Dark triad personality traits", "Milgram experiment ethics"
+    ]
+}
+
 class ResearchAgent:
     def __init__(self, db_manager: DatabaseManager, llm_client: LLMClient):
         self.db = db_manager
         self.llm = llm_client
         # Deep internet knowledge seeds to trigger complex Wikipedia exploration
-        self.seed_words = [
+        self.default_seed_words = [
             "Quantum entanglement paradoxes", "Epigenetic inheritance", "Bronze Age Collapse mathematics",
             "Non-Euclidean geometry principles", "Neuroplasticity in adult brains", "Cryptographic hash collisions",
             "Thermodynamic entropy paradoxes", "Linguistic relativity", "The Fermi Paradox solutions",
@@ -64,13 +146,15 @@ class ResearchAgent:
             for _ in range(weight):
                 pool.append({"id": kw["id"], "word": kw["keyword"], "is_target": True})
                 
-        # 2. Add random complex topics to maintain mixed diversity
+        # 2. Build seed words: use focused seeds if topic_focus is active, otherwise default
+        active_seeds = self._get_focused_seed_words()
+        
         # If we have targets, we mix in some randoms. If we don't have targets, we fill entirely with randoms.
         num_random = max(1, num_results - 1) if valid_keywords else num_results
         
         # Handle case where sample is larger than population
-        sample_size = min(num_random, len(self.seed_words))
-        random_seeds = random.sample(self.seed_words, sample_size)
+        sample_size = min(num_random, len(active_seeds))
+        random_seeds = random.sample(active_seeds, sample_size)
         
         for w in random_seeds:
             pool.append({"id": None, "word": w, "is_target": False})
@@ -86,6 +170,41 @@ class ResearchAgent:
         logger.info(f"Research Search Mix: {target_count} target keywords, {random_count} random seeds.")
         
         return selected
+
+    def _get_focused_seed_words(self) -> List[str]:
+        """Returns seed words biased towards focus domains if set, otherwise returns default seeds."""
+        topic_focus = self.db.get_setting("topic_focus") or ""
+        if not topic_focus.strip():
+            return self.default_seed_words
+        
+        # Parse comma-separated domains
+        domains = [d.strip().lower() for d in topic_focus.split(",") if d.strip()]
+        if not domains:
+            return self.default_seed_words
+        
+        # Collect seeds from matching domain pools
+        focused_seeds = []
+        for domain in domains:
+            if domain in DOMAIN_SEED_WORDS:
+                focused_seeds.extend(DOMAIN_SEED_WORDS[domain])
+        
+        # Deduplicate
+        focused_seeds = list(set(focused_seeds))
+        
+        if not focused_seeds:
+            # Unknown domain — fall back to defaults but log it
+            logger.warning(f"Topic focus domains {domains} have no predefined seeds. Using defaults.")
+            return self.default_seed_words
+        
+        # Mix in ~20% default seeds for diversity even when focused
+        num_mix = max(2, len(focused_seeds) // 5)
+        sample_size = min(num_mix, len(self.default_seed_words))
+        mix_seeds = random.sample(self.default_seed_words, sample_size)
+        focused_seeds.extend(mix_seeds)
+        focused_seeds = list(set(focused_seeds))
+        
+        logger.info(f"🎯 Topic Focus active: {domains} → {len(focused_seeds)} focused seed words")
+        return focused_seeds
 
     def fetch_wikipedia_summaries(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Fetches standard Wikipedia summaries based on search keywords."""
@@ -366,6 +485,21 @@ class ResearchAgent:
             else:
                 abstracts_data = self.fetch_wikipedia_summaries(items)
 
+        # Build topic focus block for system prompt
+        topic_focus = self.db.get_setting("topic_focus") or ""
+        topic_focus_instructions = self.db.get_setting("topic_focus_instructions") or ""
+        
+        if topic_focus.strip():
+            focus_block = f"\nRule 3 (TOPIC FOCUS — CRITICAL): You MUST generate topics within these domains: {topic_focus}. "
+            focus_block += "Do NOT generate topics outside of these focus areas. Every generated topic MUST be directly related to at least one of the specified domains."
+            if topic_focus_instructions.strip():
+                focus_block += f"\nAdditional Focus Instructions: {topic_focus_instructions}"
+            focus_block += "\n"
+        else:
+            focus_block = "\n"
+        
+        formatted_system_prompt = RESEARCHER_SYSTEM_PROMPT.format(topic_focus_block=focus_block)
+        
         inserted_count = 0
         
         for data in abstracts_data:
@@ -379,7 +513,7 @@ class ResearchAgent:
             prompt = f"Based on this informational excerpt from {stype}, generate a highly engaging, thought-provoking conversation topic for an empathetic AI to discuss with a human.\n\nExcerpt:\n{abstract}"
             
             try:
-                result_wrapper = self.llm.generate(prompt=prompt, system_message=RESEARCHER_SYSTEM_PROMPT)
+                result_wrapper = self.llm.generate(prompt=prompt, system_message=formatted_system_prompt)
                 result_json = result_wrapper.get("data", {})
                 usage = result_wrapper.get("usage", {})
 

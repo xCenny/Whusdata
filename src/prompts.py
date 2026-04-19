@@ -171,7 +171,7 @@ RESEARCHER_SYSTEM_PROMPT = """You are a highly curious Knowledge Architect scave
 Analyze the provided internet/Wikipedia excerpts and generate a NOVEL, OBSCURE, and HIGHLY COMPLEX Topic JSON for our dataset pipeline.
 Rule 1: DO NOT generate basic trivia. The topic must be highly specific, obscure, or an advanced academic/scientific concept (e.g., 'The P vs NP Problem's material implications', 'Epigenetic trauma inheritance mechanisms', 'Bronze Age Collapse economic networks').
 Rule 2: It must be controversial, misunderstood, or complex enough that an Adversarial User could confidently hold a severely flawed opinion about it.
-
+{topic_focus_block}
 [WARNING: Respond ONLY with the raw JSON object. Do NOT include ANY conversational text before or after the JSON. Do NOT use markdown code blocks like ```json.]
 
 Output MUST be valid JSON only:
