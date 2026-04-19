@@ -239,13 +239,18 @@ elif page == "💬 Conversations":
                 p_text += f"\n\n<small><i>{det_p}</i></small>"
             tc1.markdown(p_text, unsafe_allow_html=True)
             
-            tc2.markdown(f"**Conflict:** `{convo.get('conflict_type', '-')}`")
+            # Conflict is now a long description, so use small italics instead of backticks
+            conflict = convo.get('conflict_type', '-')
+            tc2.markdown(f"**Conflict:**\n\n<small><i>{conflict}</i></small>", unsafe_allow_html=True)
             
             bc = convo.get("broad_category", "")
-            d_text = f"**Domain:** `{convo.get('domain', '-')}`"
+            domain_val = convo.get('domain', '-')
+            
+            d_text = ""
             if bc and bc != "Unknown":
-                d_text = f"**Tag:** `{bc}`\n\n" + d_text
-            tc3.markdown(d_text)
+                d_text += f"**Tag:** `{bc}`\n\n"
+            d_text += f"**Domain:**\n\n<small><i>{domain_val}</i></small>"
+            tc3.markdown(d_text, unsafe_allow_html=True)
             
             tc4.markdown(f"**Tier:** `{tier}`")
             tc5.markdown(f"**🤖 Gen:** `{convo.get('model_used', 'unknown')}` | **⚖️ Critic:** `{convo.get('critic_model_used', 'unknown')}`")
