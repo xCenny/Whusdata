@@ -107,6 +107,10 @@ class DatabaseManager:
                     cursor.execute("ALTER TABLE generations ADD COLUMN detailed_persona TEXT;")
                 except sqlite3.OperationalError:
                     pass
+                try:
+                    cursor.execute("ALTER TABLE generations ADD COLUMN tag TEXT;")
+                except sqlite3.OperationalError:
+                    pass
 
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS hf_export_targets (
@@ -527,7 +531,8 @@ class DatabaseManager:
                     "model_used": r.get("model_used", ""),
                     "messages": messages,
                     "critic_analytics": r["critic_analytics"],
-                    "dataset_name": r.get("dataset_name", "default")
+                    "dataset_name": r.get("dataset_name", "default"),
+                    "tag": r.get("tag", "")
                 })
             return results
 
@@ -616,9 +621,9 @@ class DatabaseManager:
                         logic_score, winner, failure_type,
                         generation_mode, model_used, critic_model_used, sha256_hash,
                         critic_analytics, factual_score, is_augmented, original_id, dataset_name,
-                        broad_category, detailed_persona
+                        broad_category, detailed_persona, tag
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     topic,
                     convo_json,
@@ -644,7 +649,8 @@ class DatabaseManager:
                     original_id,
                     dataset_name,
                     metadata.get("broad_category", "Unknown"),
-                    metadata.get("detailed_persona", "Unknown")
+                    metadata.get("detailed_persona", "Unknown"),
+                    metadata.get("tag", "Unknown")
                 ))
                 row_id = cursor.lastrowid
                 conn.commit()

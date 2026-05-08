@@ -69,7 +69,8 @@ Output MUST be valid JSON only with exactly these keys:
     "detailed_persona": "Highly descriptive, nuanced 1-2 sentence breakdown of the user's psychological angle (e.g., 'Aggressive skeptic demanding rigorous, current evidence while dismissing established models...').",
     "conflict_type": "Highly detailed core conflict (e.g., 'Evidence credibility and recency - user challenges the methodological rigor...').",
     "resolution_style": "How the assistant solved it",
-    "difficulty_level": "Beginner, Intermediate, Advanced"
+    "difficulty_level": "Beginner, Intermediate, Advanced",
+    "tag": "A relevant short tag or keyword for the dataset (e.g., 'physics', 'history_debate', 'tech_ethics')."
 }}
 """
 
