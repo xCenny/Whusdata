@@ -208,8 +208,8 @@ def orchestrator_loop():
 
             # Guard 0: API Failure Rescue
             if final_state.get("api_failure", False):
-                logger.warning(f"⚠️ Topic {topic_id} hit an API/Rate Limit failure. Reverting to PENDING to save the topic.")
-                db.mark_topic_status(topic_id, "PENDING")
+                logger.warning(f"⚠️ Topic {topic_id} hit an API/Rate Limit failure. Marking as FAILED_API to prevent infinite loops.")
+                db.mark_topic_status(topic_id, "FAILED_API")
                 time.sleep(15)
                 continue
 

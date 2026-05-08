@@ -301,7 +301,8 @@ class LLMClient:
 
         client = OpenAI(
             api_key=config["api_key"],
-            base_url=config["base_url"]
+            base_url=config["base_url"],
+            timeout=60.0
         )
 
         messages = []
